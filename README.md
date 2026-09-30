@@ -2,7 +2,11 @@
 
 **Universal QR Code Scanner** - Android (Pydroid 3) & Desktop (Windows/Linux)
 
-A high-performance, cross-platform QR code scanning application that runs seamlessly on both Android devices (via Pydroid 3) and desktop environments (Windows/Linux). Designed for reliability, ease of sharing, and extensibility.
+A high-performance, cross-platform QR code scanning application that runs seamlessly on both Android devices (via Pydroid 3) and desktop environments (Windows/Linux). Designed for reliability, ease of use, and extensibility.
+
+## Current status
+
+This project is currently a free, open-source desktop and Android/Pydroid 3 codebase. It is not yet a standalone APK distributed directly from this repository.
 
 ## Features
 
@@ -78,7 +82,7 @@ Contributions are welcome! Please see [CONTRIBUTING.md](docs/CONTRIBUTING.md) fo
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details
+GNU General Public License v3.0 - see [LICENSE](LICENSE) for details.
 
 ## Support
 
