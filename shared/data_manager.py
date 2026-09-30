@@ -42,7 +42,7 @@ class QRCodeRecord(Base):
             "id": self.id,
             "data": self.data,
             "format": self.format,
-            "timestamp": self.timestamp.isoformat(),
+            "timestamp": (self.timestamp.isoformat() if self.timestamp else None),
             "tags": self.tags.split(",") if self.tags else [],
             "notes": self.notes,
         }

@@ -166,13 +166,13 @@ class TestDataManager:
         """Test clearing old scans"""
         data_manager.save_scan(sample_scan_result)
         
-        # Clear scans older than 0 days (should not delete fresh scans)
-        deleted = data_manager.clear_old_scans(days=0)
-        assert deleted == 0
-        
-        # Clear scans older than 1 day (should not delete today's scans)
+        # Clear scans older than 1 day (should not delete a fresh scan)
         deleted = data_manager.clear_old_scans(days=1)
         assert deleted == 0
+        
+        # Clear scans older than 0 days (removes everything saved before now)
+        deleted = data_manager.clear_old_scans(days=0)
+        assert deleted == 1
 
 
 class TestQRCodeRecord:
