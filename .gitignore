@@ -47,3 +47,6 @@ htmlcov/
 # Config with secrets
 .env
 .env.local
+
+# Local scan data
+data/
