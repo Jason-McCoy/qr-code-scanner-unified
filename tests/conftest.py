@@ -10,8 +10,7 @@ import sys
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from shared.config import Config
-from shared.data_manager import DataManager
+from shared.data_manager import DataManager  # noqa: E402
 
 
 @pytest.fixture
@@ -34,7 +33,7 @@ def data_manager(temp_db):
 def sample_scan_result():
     """Create a sample scan result for testing"""
     from shared.qr_scanner import ScanResult
-    
+
     return ScanResult(
         data="https://github.com/Jason-McCoy/qr-code-scanner-unified",
         format="QRCODE",
