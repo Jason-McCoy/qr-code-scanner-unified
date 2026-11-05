@@ -265,6 +265,29 @@ Full raw output files from this session are saved beside the PDF copy of this re
 - The duplicate filter treats a code as "the same" only when text and format match exactly.
 - `safe_display()` makes control characters visible; it does not judge whether a link is safe to open. The app never opens links or runs content, which I checked: no code opens URLs, runs commands or evaluates QR content.
 
-## 8. Nothing was pushed
+## 8. Push to GitHub
 
-All commits are local to the review session. Nothing was pushed to GitHub, no pull request or issue was opened, and `main` was not touched. Pushing the branch for review waits for Jason's yes.
+Until Jason's yes, all commits stayed local. He answered "Yes, push it" on November 5, 2026 at 04:01 UTC, to the question whether to push the review branch for him to look at, with no pull request and `main` untouched.
+
+```
+$ git push -u origin claude/project-thread-6g31ff
+remote: This repository moved. Please use the new location:
+remote:   https://github.com/Jason-McCoy/qr-code-scanner-unified.git
+remote:
+remote: Create a pull request for 'claude/project-thread-6g31ff' on GitHub by visiting:
+remote:      https://github.com/Jason-McCoy/qr-code-scanner-unified/pull/new/claude/project-thread-6g31ff
+remote:
+To https://github.com/jason-mccoy/qr-code-scanner-unified
+ * [new branch]      claude/project-thread-6g31ff -> claude/project-thread-6g31ff
+branch 'claude/project-thread-6g31ff' set up to track 'origin/claude/project-thread-6g31ff'.
+
+$ git ls-remote origin refs/heads/main refs/heads/claude/project-thread-6g31ff
+2bc8a1b1fc8dcadd856217da24d1dd4f851e3ff6	refs/heads/claude/project-thread-6g31ff
+042a65d55d3b0a8d40355ee08d0dd71a480e98e7	refs/heads/main
+```
+
+Checked afterwards through the GitHub API: the repository has two branches, `main` still at `042a65d` (unchanged) and `claude/project-thread-6g31ff` at `2bc8a1b`, and no pull requests, open or closed.
+
+The "repository moved" line only reflects the letter case of the account name in the local clone's address (`jason-mccoy` versus `Jason-McCoy`). The push went to the right repository.
+
+This section was added in one more commit after `2bc8a1b`, pushed to the same branch. No pull request was opened and nothing was merged. Merging is Jason's decision.
