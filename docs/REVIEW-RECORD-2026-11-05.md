@@ -752,3 +752,34 @@ $ git push origin main
 ```
 
 The GitHub API showed both branches at `1c7c475`, the same as local. That push included sections 13 and 14 and the photo fix. This note was added in one more commit, which was pushed to both branches the same way.
+
+## 15. QR photo read on Jason's phone (November 5, 2026)
+
+After the photo fix was pushed (section 14.5), Jason ran this in Termux. Copied from his screenshot:
+
+```
+git pull
+python -m android.scan_latest --force
+...
+From https://github.com/Jason-McCoy/qr-code-scanner-unified
+   faeb43b..f983f01  main       -> origin/main
+   faeb43b..f983f01  claude/project-thread-6g31ff -> origin/claude/project-thread-6g31ff
+Updating faeb43b..f983f01
+Fast-forward
+ CHANGELOG.md                       |   3 +
+ docs/REVIEW-RECORD-2026-11-05.md   | 105 ++++++++++++
+ shared/qr_scanner.py               |  50 +++++-
+ tests/fixtures/photo_screen_qr.jpg | Bin 0 -> 442821 bytes
+ tests/test_photo_scan.py           |  52 ++++++
+ 5 files changed, 209 insertions(+), 1 deletion(-)
+Scanning: IMG_20261104_231843280_HDR.jpg
+  1. [QRCODE] http://en.m.wikipedia.org
+  2. [QRCODE] https://www.the-qrcode-generator.com/
+Saved 2 code(s) to the database.
+```
+
+Jason's words: "That is what I am talking about".
+
+**Confirmed on the phone:** with `main` at `f983f01`, the same photo that gave "No codes found" before the fix now decodes both QR codes, and both are saved to the database. The results match what this environment found on the copy he sent (section 14.2), and this closes "QR decoding on the phone not shown" from sections 11 and 12.
+
+**Still open:** the other five photos from section 14 were not re-scanned; the time taken on the phone was not measured; the saved entries were not looked at on the phone; Android live camera mode was not run; desktop on a real webcam or Windows; spreadsheet apps; and the items in section 7 left for Jason's decision.
