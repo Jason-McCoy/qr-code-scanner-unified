@@ -35,42 +35,42 @@ class Config:
     # Application metadata
     APP_NAME = "QR Code Scanner Unified"
     APP_VERSION = "1.0.0"
-    
+
     # Paths
     BASE_DIR = _BASE_DIR
     DATA_DIR = _path_from_env("DATA_DIR", BASE_DIR / "data")
     DB_PATH = _path_from_env("DB_PATH", DATA_DIR / "qr_scanner.db")
     LOGS_DIR = _path_from_env("LOGS_DIR", BASE_DIR / "logs")
-    
+
     # Scanning configuration
     CAMERA_INDEX = int(os.getenv("CAMERA_INDEX", 0))
     SCAN_TIMEOUT = int(os.getenv("SCAN_TIMEOUT", 30))  # seconds
     MIN_CONFIDENCE = float(os.getenv("MIN_CONFIDENCE", 0.5))
     # Seconds before the same code is reported again during continuous scanning
     DUPLICATE_COOLDOWN = float(os.getenv("DUPLICATE_COOLDOWN", 5))
-    
+
     # Image processing
     IMAGE_QUALITY = int(os.getenv("IMAGE_QUALITY", 95))
     MAX_IMAGE_SIZE = int(os.getenv("MAX_IMAGE_SIZE", 2048))  # pixels
-    
+
     # Database
     DB_POOL_SIZE = int(os.getenv("DB_POOL_SIZE", 5))
     DB_TIMEOUT = int(os.getenv("DB_TIMEOUT", 10))  # seconds
-    
+
     # Feature flags
     AUTO_SAVE = os.getenv("AUTO_SAVE", "true").lower() == "true"
     ENABLE_LOGGING = os.getenv("ENABLE_LOGGING", "true").lower() == "true"
     DEBUG_MODE = os.getenv("DEBUG_MODE", "false").lower() == "true"
-    
+
     # Export formats
     EXPORT_FORMATS = ["csv", "json", "txt", "pdf"]
-    
+
     @classmethod
     def ensure_directories(cls):
         """Create necessary directories if they don't exist"""
         cls.DATA_DIR.mkdir(parents=True, exist_ok=True)
         cls.LOGS_DIR.mkdir(parents=True, exist_ok=True)
-    
+
     @classmethod
     def to_dict(cls):
         """Return configuration as dictionary"""

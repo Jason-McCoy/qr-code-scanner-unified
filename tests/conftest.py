@@ -33,7 +33,7 @@ def data_manager(temp_db):
 def sample_scan_result():
     """Create a sample scan result for testing"""
     from shared.qr_scanner import ScanResult
-    
+
     return ScanResult(
         data="https://github.com/Jason-McCoy/qr-code-scanner-unified",
         format="QRCODE",

@@ -38,23 +38,23 @@ def main():
         from desktop.ui.main_window import MainWindow
 
         logger.info(f"Starting {Config.APP_NAME} v{Config.APP_VERSION}")
-        
+
         # Create Qt application
         app = QApplication(sys.argv)
-        
+
         # Set application metadata
         app.setApplicationName(Config.APP_NAME)
         app.setApplicationVersion(Config.APP_VERSION)
-        
+
         # Create and show main window
         window = MainWindow()
         window.show()
-        
+
         logger.info("Application window displayed")
-        
+
         # Run event loop
         return app.exec_()
-    
+
     except Exception as e:
         logger.error(f"Fatal error: {e}", exc_info=True)
         return 1
