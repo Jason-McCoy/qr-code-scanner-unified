@@ -442,3 +442,24 @@ Test count: 63 after the first round, 113 now (50 new in `tests/test_review_foll
 - **Same text on two labels** within the cooldown counts as one scan (by design).
 - **The phone test from the first round** (`python -m android.scan_latest --force` in Termux) is still Jason's to run.
 - Everything in section 7 that was left for Jason's decision is unchanged.
+
+### 9.10 Push of the follow-up
+
+Jason answered "Yes, push it" on November 5, 2026 at 04:21 UTC, to the question whether to push this commit to the same review branch.
+
+```
+$ git push -u origin claude/project-thread-6g31ff
+remote: This repository moved. Please use the new location:
+remote:   https://github.com/Jason-McCoy/qr-code-scanner-unified.git
+To https://github.com/jason-mccoy/qr-code-scanner-unified
+   39b90cd..c6bd732  claude/project-thread-6g31ff -> claude/project-thread-6g31ff
+branch 'claude/project-thread-6g31ff' set up to track 'origin/claude/project-thread-6g31ff'.
+
+$ git ls-remote origin refs/heads/main refs/heads/claude/project-thread-6g31ff
+c6bd732fdf8147ef854731d37b8f5e5e77804c64	refs/heads/claude/project-thread-6g31ff
+042a65d55d3b0a8d40355ee08d0dd71a480e98e7	refs/heads/main
+```
+
+It was a normal fast-forward push (no force). Checked afterwards through the GitHub API: two branches, `main` still at `042a65d` (unchanged) and `claude/project-thread-6g31ff` at `c6bd732`, the same as the local head, and no pull requests, open or closed.
+
+This subsection was added in one more commit after `c6bd732`, pushed to the same branch. No pull request was opened and nothing was merged. Merging is Jason's decision.
