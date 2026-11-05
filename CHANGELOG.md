@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Review and fixes, November 5, 2026. Full details, test output and open items:
+docs/REVIEW-RECORD-2026-11-05.md
+
+### Fixed
+- Desktop app failed to start: wrong import paths in desktop/ui/main_window.py
+  and desktop/qr_scanner_desktop.py (ModuleNotFoundError)
+- README commands `python desktop/...` and `python android/...` failed with
+  "No module named 'shared'"; both script and `python -m` forms now work
+- Continuous scanning saved the same code once per video frame (about 30 a
+  second); now once per DUPLICATE_COOLDOWN (default 5 s)
+- Continuous scanning crashed on OpenCV builds without a GUI (cv2.waitKey)
+- Busy loop at 100% CPU when the camera returned no frames
+- QR content with terminal control characters was printed raw (could clear
+  the screen or change the terminal title)
+- CSV export: formula injection, Python list text for tags, no UTF-8 on Windows
+- SQLAlchemy 1.4 (allowed by requirements) crashed on start (pool_size)
+- Log files logs/android.log and logs/desktop.log were always empty
+- Desktop: Copy Selected copied the shortened text and needed a full-row
+  selection; QPixmap made outside the GUI thread; Stop could hang
+- scan_latest marked a photo as scanned even when saving failed
+- .env.example started with a Python docstring that python-dotenv could not parse
+- QUICKSTART.md was a corrupted tool payload and stated the MIT license
+
+### Added
+- shared/safety.py (safe_display, csv_safe_cell), shared/logging_setup.py
+- QRScanner.filter_new() and reset_duplicates(); DUPLICATE_COOLDOWN setting
+- scan_latest --verbose, upper-case photo extensions, CAMERA_DIR setting
+- Tests: real QR image fixtures, duplicate filter, safety helpers, CSV/JSON
+  export, entry points, desktop window (offscreen)
+
 ## [1.0.0] - 2026-08-29
 
 ### Added

@@ -1,21 +1,28 @@
 # QR Code Scanner Unified
 
-**Universal QR Code Scanner** - Android (Pydroid 3) & Desktop (Windows/Linux)
+**QR Code and Barcode Scanner** - Android (Termux, Pydroid 3) & Desktop (Windows/Linux)
 
-A high-performance, cross-platform QR code scanning application that runs seamlessly on both Android devices (via Pydroid 3) and desktop environments (Windows/Linux). Designed for reliability, ease of use, and extensibility.
+A cross-platform QR code and barcode scanner written in Python. The same core code runs on an Android phone (in Termux, by scanning camera photos) and on a desktop computer (a PyQt5 window with a live camera view).
 
 ## Current status
 
-This project is currently a free, open-source desktop and Android/Pydroid 3 codebase. It is not yet a standalone APK distributed directly from this repository.
+This project is a free, open-source Python codebase. It is not a standalone APK.
+
+| Platform | How it scans | Tested |
+|----------|--------------|--------|
+| Android, Termux | Scans the newest camera photo (`android.scan_latest`) | Used by the author on his phone |
+| Desktop, Linux | Live camera window (PyQt5) | Window starts; live camera not tested in review |
+| Desktop, Windows | Live camera window (PyQt5) | Not tested |
+| Android, Pydroid 3 | Live camera (`android.qr_scanner_android`) | Not tested |
 
 ## Features
 
-✅ **Real-time QR Code Detection** - Fast, accurate scanning using OpenCV and pyzbar
-✅ **Cross-Platform Support** - Single codebase for Android and Desktop
-✅ **Data Persistence** - Save and manage scanned QR codes
-✅ **User-Friendly Interface** - Intuitive UI for both touch and desktop
-✅ **Shareable Results** - Export scanned data in multiple formats
-✅ **Extensible Architecture** - Easy to add new features and integrations
+- **QR codes and barcodes** - decoded with pyzbar (zbar) from camera frames or photos
+- **Saved history** - every scan is stored in a local SQLite database
+- **No duplicate floods** - during live scanning, the same code is saved once per cooldown (5 seconds by default, `DUPLICATE_COOLDOWN`)
+- **Safe display** - control characters in scanned content are shown as visible escapes (such as `\x1b`), so a QR code cannot clear or rewrite your terminal
+- **Export** - JSON and CSV (CSV cells that would run as spreadsheet formulas are neutralised)
+- **Search** - find past scans by content
 
 ## Quick Start
 
@@ -41,24 +48,39 @@ pip install -r requirements.txt
 
 ### Running the Application
 
+Run these from the project folder.
+
+**Android (Termux):** take a photo of the code with the camera app, then:
+```bash
+python -m android.scan_latest            # newest photo in ~/storage/dcim/Camera
+python -m android.scan_latest photo.jpg  # a specific image
+python -m android.scan_latest --force    # scan a photo again
+```
+Termux setup is in [requirements-termux.txt](requirements-termux.txt). Photos already scanned are remembered in `data/scanned_photos.txt`.
+
 **Desktop (Windows/Linux):**
 ```bash
-python desktop/qr_scanner_desktop.py
+python -m desktop.qr_scanner_desktop
+# or: python desktop/qr_scanner_desktop.py
 ```
 
-**Android (Pydroid 3):**
+**Android (Pydroid 3), live camera:**
 ```bash
-python android/qr_scanner_android.py
+python -m android.qr_scanner_android
+# or: python android/qr_scanner_android.py
 ```
+OpenCV usually cannot open the phone camera from Termux; use `android.scan_latest` there.
+
+Settings can be changed in a `.env` file (copy [.env.example](.env.example)).
 
 ## Project Structure
 
 ```
 qr-code-scanner-unified/
-├── shared/          # Shared code (core scanning logic)
+├── shared/          # Shared code (scanning, database, settings, safe display)
 ├── desktop/         # Desktop application (PyQt5)
-├── android/         # Android application (Pydroid 3)
-├── tests/           # Test suite
+├── android/         # Android: scan_latest (Termux) and live camera (Pydroid 3)
+├── tests/           # Test suite (fixtures/ holds sample QR images)
 ├── docs/            # Documentation
 └── scripts/         # Utility scripts
 ```
@@ -76,6 +98,8 @@ qr-code-scanner-unified/
 pytest tests/ -v --cov=shared
 ```
 
+The desktop tests need PyQt5 and are skipped without it (for example on Termux). Without a screen, set `QT_QPA_PLATFORM=offscreen`.
+
 ## Contributing
 
 Contributions are welcome! Please see [CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines.
@@ -90,4 +114,4 @@ For issues, questions, or suggestions, please open an [Issue](https://github.com
 
 ---
 
-**Status**: 🚀 Active Development
+**Status**: Active development. A record of the November 2026 review, with what was found, changed, tested and left open, is in [docs/REVIEW-RECORD-2026-11-05.md](docs/REVIEW-RECORD-2026-11-05.md).

@@ -1,1 +1,101 @@
-# Quick Reference Guide\n\n## Installation (60 seconds)\n\n```bash\ngit clone https://github.com/Jason-McCoy/qr-code-scanner-unified.git\ncd qr-code-scanner-unified\npython -m venv venv\nsource venv/bin/activate  # Windows: venv\\Scripts\\activate\npip install -r requirements.txt\n```\n\n## Running\n\n**Desktop:**\n```bash\npython desktop/qr_scanner_desktop.py\n```\n\n**Android:**\n```bash\npython android/qr_scanner_android.py\n```\n\n**Tests:**\n```bash\npytest tests/ -v\n```\n\n## Key Files\n\n| File | Purpose |\n|------|----------|\n| `shared/qr_scanner.py` | Core scanning engine |\n| `shared/data_manager.py` | Database persistence |\n| `desktop/qr_scanner_desktop.py` | Desktop GUI app |\n| `android/qr_scanner_android.py` | Android CLI app |\n| `docs/API.md` | Complete API reference |\n| `docs/ARCHITECTURE.md` | Technical design |\n\n## Common Tasks\n\n**Scan and save:**\n```python\nfrom shared import QRScanner, DataManager\n\nscanner = QRScanner()\nmanager = DataManager()\n\nscanner.start()\nresults = scanner.scan_continuous(duration=30)\nfor result in results:\n    manager.save_scan(result)\nscanner.stop()\nmanager.close()\n```\n\n**Export scans:**\n```python\nmanager = DataManager()\nmanager.export_json(\"scans.json\")\nmanager.export_csv(\"scans.csv\")\nmanager.close()\n```\n\n**Search scans:**\n```python\nmanager = DataManager()\nresults = manager.search_scans(\"github\")\nfor result in results:\n    print(result['data'])\nmanager.close()\n```\n\n## Project Structure\n\n```\n.\n├── shared/              # Core modules (both platforms)\n│   ├── qr_scanner.py\n│   ├── data_manager.py\n│   └── config.py\n├── desktop/             # Desktop GUI (PyQt5)\n│   ├── qr_scanner_desktop.py\n│   ├── camera.py\n│   ├── handlers.py\n│   └── ui/\n│       ├── main_window.py\n│       └── widgets.py\n├── android/             # Android app (Pydroid 3)\n│   ├── qr_scanner_android.py\n│   ├── camera.py\n│   └── storage.py\n├── tests/               # Test suite\n│   ├── test_qr_scanner.py\n│   ├── test_data_manager.py\n│   └── conftest.py\n├── docs/                # Documentation\n│   ├── ARCHITECTURE.md\n│   ├── SETUP.md\n│   ├── API.md\n│   ├── CONTRIBUTING.md\n│   └── TESTING.md\n├── requirements.txt     # Dependencies\n├── LICENSE              # MIT License\n├── README.md            # Project overview\n└── CHANGELOG.md         # Version history\n```\n\n## Environment Variables\n\nCreate `.env` file in project root:\n\n```bash\nCAMERA_INDEX=0          # Camera device (0=default)\nAUTO_SAVE=true          # Auto-save scans\nDEBUG_MODE=false        # Debug output\nDB_PATH=./data/qr_scanner.db\n```\n\n## Support\n\n- 📖 Read `docs/SETUP.md` for detailed setup\n- 🔧 Check `docs/ARCHITECTURE.md` for technical details\n- 💻 See `docs/API.md` for code examples\n- 🐛 Report issues on GitHub\n- 🤝 Contribute via pull requests\n\n## Stats\n\n- 📦 2,300+ lines of production code\n- 🧪 300+ lines of test code\n- 📚 800+ lines of documentation\n- ⚡ 30 FPS scanning capability\n- 💾 SQLite persistence\n- 🖥️ Cross-platform (Windows, Linux, Android)\n\n## License\n\nMIT License - See LICENSE file for details\n\n## Author\n\nCreated by Jason McCoy\nGitHub: [@Jason-McCoy](https://github.com/Jason-McCoy)\n", "path": "QUICKSTART.md"}, {"content": "#!/usr/bin/env python3\n\"\"\"\nSetup script for development environment\n\nRun: python scripts/setup_dev.py\n\"\"\"\n\nimport subprocess\nimport sys\nfrom pathlib import Path\n\n\ndef run_command(cmd, description):\n    \"\"\"Run shell command with error handling\"\"\"\n    print(f\"\\n{'='*60}\")\n    print(f\"  {description}\")\n    print(f\"{'='*60}\")\n    \n    try:\n        result = subprocess.run(cmd, shell=True, check=True)\n        if result.returncode == 0:\n            print(f\"✓ {description} completed\")\n            return True\n    except subprocess.CalledProcessError as e:\n        print(f\"✗ {description} failed: {e}\")\n        return False\n\n\ndef main():\n    \"\"\"Setup development environment\"\"\"\n    print(\"\\n\" + \"=\"*60)\n    print(\"  QR Code Scanner Unified - Development Setup\")\n    print(\"=\"*60)\n    \n    # Check Python version\n    if sys.version_info < (3, 8):\n        print(\"❌ Python 3.8+ required\")\n        sys.exit(1)\n    \n    print(f\"✓ Python {sys.version.split()[0]} detected\")\n    \n    # Create virtual environment\n    if not Path(\"venv\").exists():\n        run_command(\n            \"python -m venv venv\",\n            \"Creating virtual environment\"\n        )\n    else:\n        print(\"✓ Virtual environment already exists\")\n    \n    # Install dependencies\n    pip_cmd = \"venv/bin/pip\" if Path(\"venv/bin\").exists() else \"venv\\\\Scripts\\\\pip\"\n    run_command(\n        f\"{pip_cmd} install -r requirements.txt\",\n        \"Installing dependencies\"\n    )\n    \n    # Install dev dependencies\n    run_command(\n        f\"{pip_cmd} install pytest pytest-cov black flake8 mypy\",\n        \"Installing development tools\"\n    )\n    \n    # Create data directories\n    Path(\"data\").mkdir(exist_ok=True)\n    Path(\"logs\").mkdir(exist_ok=True)\n    print(\"✓ Created data and logs directories\")\n    \n    # Create .env from example\n    if not Path(\".env\").exists() and Path(\".env.example\").exists():\n        import shutil\n        shutil.copy(\".env.example\", \".env\")\n        print(\"✓ Created .env from .env.example\")\n    \n    # Run tests\n    print(\"\\n\" + \"=\"*60)\n    print(\"  Running tests...\")\n    print(\"=\"*60)\n    run_command(\n        f\"{pip_cmd} -m pytest tests/ -v --tb=short\",\n        \"Running test suite\"\n    )\n    \n    print(\"\\n\" + \"=\"*60)\n    print(\"  Setup Complete! 🎉\")\n    print(\"=\"*60)\n    print(\"\\nNext steps:\")\n    print(\"1. Activate venv: source venv/bin/activate (or venv\\\\Scripts\\\\activate)\")\n    print(\"2. Run desktop app: python desktop/qr_scanner_desktop.py\")\n    print(\"3. Run tests: pytest tests/ -v\")\n    print(\"4. Read docs: cat docs/SETUP.md\")\n    print()\n\n\nif __name__ == \"__main__\":\n    main()\n", "path": "scripts/setup_dev.py"}, {"content": "#!/usr/bin/env python3\n\"\"\"\nCleanup script for removing temporary files\n\nRun: python scripts/cleanup.py\n\"\"\"\n\nimport shutil\nfrom pathlib import Path\nimport os\n\n\ndef cleanup():\n    \"\"\"Remove temporary and cache files\"\"\"\n    print(\"\\nCleaning up...\")\n    \n    # Directories to remove\n    dirs_to_remove = [\n        \"__pycache__\",\n        \".pytest_cache\",\n        \".coverage\",\n        \"htmlcov\",\n        \"dist\",\n        \"build\",\n        \"*.egg-info\",\n    ]\n    \n    # Files to remove\n    files_to_remove = [\n        \"*.pyc\",\n        \"*.pyo\",\n        \"*.log\",\n        \".DS_Store\",\n    ]\n    \n    count = 0\n    \n    # Remove directories\n    for pattern in dirs_to_remove:\n        for path in Path(\".\").rglob(pattern):\n            if path.is_dir():\n                try:\n                    shutil.rmtree(path)\n                    print(f\"  Removed: {path}\")\n                    count += 1\n                except Exception as e:\n                    print(f\"  Error removing {path}: {e}\")\n    \n    # Remove files\n    for pattern in files_to_remove:\n        for path in Path(\".\").glob(f\"**/{pattern}\"):\n            if path.is_file():\n                try:\n                    path.unlink()\n                    print(f\"  Removed: {path}\")\n                    count += 1\n                except Exception as e:\n                    print(f\"  Error removing {path}: {e}\")\n    \n    print(f\"\\nCleanup complete! Removed {count} items.\\n\")\n\n\nif __name__ == \"__main__\":\n    cleanup()\n", "path": "scripts/cleanup.py"}]
+# Quick Reference Guide
+
+## Install
+
+**Desktop (Windows/Linux):**
+```bash
+git clone https://github.com/Jason-McCoy/qr-code-scanner-unified.git
+cd qr-code-scanner-unified
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
+pyzbar also needs the zbar library (Linux: `sudo apt install libzbar0`; the Windows pyzbar wheel includes it).
+
+**Termux (Android):** see the setup notes at the top of `requirements-termux.txt`, then:
+```bash
+pip install -r requirements-termux.txt
+```
+
+## Run
+
+Run these from the project folder.
+
+| What | Command |
+|------|---------|
+| Termux: scan newest camera photo | `python -m android.scan_latest` |
+| Termux: scan a given image | `python -m android.scan_latest photo.jpg` |
+| Termux: scan a photo again | `python -m android.scan_latest --force` |
+| Desktop window | `python -m desktop.qr_scanner_desktop` |
+| Live camera, no window (Pydroid 3) | `python -m android.qr_scanner_android` |
+| Tests | `pytest tests/ -v` |
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `shared/qr_scanner.py` | Scanning engine and duplicate filter |
+| `shared/data_manager.py` | SQLite database and JSON/CSV export |
+| `shared/safety.py` | Safe display of untrusted QR content |
+| `shared/config.py` | Settings from `.env` |
+| `android/scan_latest.py` | Termux photo scanner |
+| `desktop/qr_scanner_desktop.py` | Desktop GUI app |
+| `android/qr_scanner_android.py` | Live camera scanner without a window |
+
+## Common Tasks
+
+**Scan an image file:**
+```python
+from shared import QRScanner, DataManager
+
+manager = DataManager()
+for result in QRScanner().scan_image_file("photo.jpg"):
+    manager.save_scan(result)
+manager.close()
+```
+
+**Scan from the camera for 30 seconds:**
+```python
+from shared import QRScanner, DataManager
+
+scanner = QRScanner()
+manager = DataManager()
+results = scanner.scan_continuous(duration=30)  # opens and closes the camera
+for result in results:
+    manager.save_scan(result)
+manager.close()
+```
+
+**Export and search:**
+```python
+from shared import DataManager
+
+manager = DataManager()
+manager.export_json("scans.json")
+manager.export_csv("scans.csv")
+for scan in manager.search_scans("github"):
+    print(scan["data"])
+manager.close()
+```
+
+When printing scanned content in your own code, pass it through `shared.safety.safe_display()` first, because a QR code can contain terminal control characters.
+
+## Environment Variables
+
+Copy `.env.example` to `.env`. The most useful settings:
+
+```bash
+CAMERA_INDEX=0           # Camera device (0 = default)
+DUPLICATE_COOLDOWN=5     # Seconds before the same code is saved again
+DEBUG_MODE=false         # More detail in logs
+DATA_DIR=./data          # Database folder (relative to the project folder)
+```
+
+## License
+
+GNU General Public License v3.0. See the LICENSE file.
+
+## Author
+
+Created by Jason McCoy
+GitHub: [@Jason-McCoy](https://github.com/Jason-McCoy)

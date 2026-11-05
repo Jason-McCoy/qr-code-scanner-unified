@@ -10,6 +10,9 @@ Core scanning engine using OpenCV and pyzbar.
 from shared import QRScanner
 
 scanner = QRScanner(camera_index=0)
+# duplicate_cooldown: seconds before scan_continuous() reports the same code
+# again (default Config.DUPLICATE_COOLDOWN = 5; 0 reports every frame)
+scanner = QRScanner(camera_index=0, duplicate_cooldown=5)
 ```
 
 ### Methods
@@ -56,7 +59,9 @@ for result in results:
 ```
 
 #### `scan_continuous(callback=None, duration=None) -> List[ScanResult]`
-Continuously scan for QR codes until stopped.
+Continuously scan for QR codes until stopped. Opens the camera if it is not
+already started and closes it at the end. Each code is reported once per
+duplicate cooldown (see `filter_new()`).
 
 ```python
 def on_scan(results):
@@ -67,6 +72,14 @@ all_results = scanner.scan_continuous(
     callback=on_scan,
     duration=60  # 60 seconds max
 )
+```
+
+#### `filter_new(results, now=None) -> List[ScanResult]`
+Drop results already seen within the duplicate cooldown. A code that stays in
+view keeps being treated as seen. `reset_duplicates()` forgets all seen codes.
+
+```python
+fresh = scanner.filter_new(scanner.scan_frame(frame))
 ```
 
 #### `scan_image_file(image_path: str) -> List[ScanResult]`
@@ -334,3 +347,24 @@ print(f"Total scans: {stats['total_scans']}")
 
 manager.close()
 ```
+
+
+## Safety helpers (`shared.safety`)
+
+QR content is untrusted. Stored data is kept exactly as scanned; these helpers
+are for showing or exporting it.
+
+#### `safe_display(text, max_length=0) -> str`
+Replaces control characters (including ESC) and hidden format characters such
+as the right-to-left override with visible escapes like `\x1b`, so the text
+cannot clear the screen, change the terminal title or disguise a link.
+
+```python
+from shared.safety import safe_display
+print(safe_display(result.data, 60))
+```
+
+#### `csv_safe_cell(value)`
+Adds a leading `'` to a value that starts with `=`, `+`, `-`, `@`, tab or
+carriage return, so spreadsheets show it as text instead of running it.
+`DataManager.export_csv()` uses this for every cell.

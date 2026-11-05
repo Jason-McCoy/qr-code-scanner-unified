@@ -1,7 +1,19 @@
-# Core QR scanning
-pyzbar>=0.1.8
+# Requirements for Termux on Android (used with: python -m android.scan_latest)
+#
+# Some parts cannot be built by pip on Termux and come from Termux's own
+# package manager instead. Install them first:
+#
+#     pkg install python zbar opencv-python python-pillow
+#     termux-setup-storage     # lets Python read ~/storage/dcim/Camera
+#
+# Then: pip install -r requirements-termux.txt
+#
+# Note: the pkg package names above were written from memory of the Termux
+# package list and have not been checked on a device in this review.
+# The desktop GUI (PyQt5) is not needed on Termux.
 
-# Desktop GUI
+# Core QR scanning (needs the zbar package above)
+pyzbar>=0.1.8
 
 # Shared utilities
 requests>=2.26.0
