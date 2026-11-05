@@ -587,6 +587,18 @@ No codes found. Try a closer, sharper, well-lit photo.
 
 **What it does not confirm:** decoding on the phone. The photo it picked up was probably not a picture of a QR code, so "No codes found" may be correct. The screenshot does not show which commit was checked out. The branch head at the time of the fetch was `c5c15cd`.
 
+**Third run (decoded and saved).** Jason ran the same command again in the project folder. This time it picked up a newer photo, of a product barcode:
+
+```
+~/qr-code-scanner-unified $ python -m android.scan_latest --force
+Scanning: IMG_20261104_225233728_HDR.jpg
+  1. [EAN13] 0030772229262
+Saved 1 code(s) to the database.
+```
+
+**What this adds:** on Jason's phone, the branch now decodes a real photo and saves the result to the database. The code it decoded was an EAN-13 product barcode.
+
 **Still open:**
-- A run on a photo of a real QR code, to prove decoding on the phone.
+- Decoding a QR code on the phone has not been shown yet. The successful photo was of a barcode, not a QR code. pyzbar reads both, and QR decoding was tested here on test images, but not on the phone.
+- The saved database entry itself was not looked at on the phone (for example by exporting it).
 - Android live camera mode (`android.qr_scanner_android`) was not run.
