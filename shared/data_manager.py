@@ -4,18 +4,19 @@ Data Management Module
 Handles persistence, retrieval, and export of scanned QR codes using SQLite.
 """
 
+import csv
 import json
 import logging
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, LargeBinary, Text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import declarative_base, sessionmaker, Session
 
 from .config import Config
 from .qr_scanner import ScanResult
+from .safety import csv_safe_cell, safe_display
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,10 @@ class QRCodeRecord(Base):
         }
     
     def __repr__(self) -> str:
-        return f"QRCodeRecord(id={self.id}, data={self.data[:50]}..., timestamp={self.timestamp})"
+        return (
+            f"QRCodeRecord(id={self.id}, data={safe_display(self.data, 50)}, "
+            f"timestamp={self.timestamp})"
+        )
 
 
 class DataManager:
@@ -75,11 +79,15 @@ class DataManager:
     def _initialize_database(self):
         """Initialize database connection and create tables"""
         try:
-            # Create engine
+            # Make sure the database folder exists (it may be outside DATA_DIR)
+            Path(self.db_path).expanduser().parent.mkdir(parents=True, exist_ok=True)
+            
+            # Create engine. pool_size is not passed: SQLAlchemy 1.4 uses
+            # NullPool for SQLite files and raises TypeError if it is given,
+            # and requirements allow sqlalchemy>=1.4.0.
             self.engine = create_engine(
                 f"sqlite:///{self.db_path}",
                 connect_args={"timeout": Config.DB_TIMEOUT},
-                pool_size=Config.DB_POOL_SIZE,
             )
             
             # Create session factory
@@ -132,7 +140,7 @@ class DataManager:
             session.commit()
             record_id = record.id
             
-            logger.info(f"Scan saved with ID {record_id}: {result.data[:50]}...")
+            logger.info(f"Scan saved with ID {record_id}: {safe_display(result.data, 50)}")
             return record_id
         
         except Exception as e:
@@ -284,8 +292,8 @@ class DataManager:
         try:
             scans = self.get_all_scans(limit=limit)
             
-            with open(output_path, "w") as f:
-                json.dump(scans, f, indent=2)
+            with open(output_path, "w", encoding="utf-8") as f:
+                json.dump(scans, f, indent=2, ensure_ascii=False)
             
             logger.info(f"Exported {len(scans)} scans to {output_path}")
             return True
@@ -298,6 +306,10 @@ class DataManager:
         """
         Export scans to CSV file
         
+        Cells that would run as a spreadsheet formula (starting with =, +,
+        -, @, tab or carriage return) get a leading single quote, and tags
+        are written as a comma-separated string.
+        
         Args:
             output_path: Path to save CSV file
             limit: Maximum records to export
@@ -306,18 +318,25 @@ class DataManager:
             bool: Success status
         """
         try:
-            import csv
-            
             scans = self.get_all_scans(limit=limit)
             
             if not scans:
                 logger.warning("No scans to export")
                 return False
             
-            with open(output_path, "w", newline="") as f:
-                writer = csv.DictWriter(f, fieldnames=scans[0].keys())
+            rows = []
+            for scan in scans:
+                row = dict(scan)
+                row["tags"] = ",".join(row.get("tags") or [])
+                rows.append({key: csv_safe_cell(value) for key, value in row.items()})
+            
+            # utf-8-sig adds a byte-order mark so Excel opens non-English
+            # text correctly; without an explicit encoding Windows used its
+            # local code page and could fail on emoji or accented letters
+            with open(output_path, "w", newline="", encoding="utf-8-sig") as f:
+                writer = csv.DictWriter(f, fieldnames=rows[0].keys())
                 writer.writeheader()
-                writer.writerows(scans)
+                writer.writerows(rows)
             
             logger.info(f"Exported {len(scans)} scans to {output_path}")
             return True
@@ -336,8 +355,6 @@ class DataManager:
         Returns:
             int: Number of records deleted
         """
-        from datetime import timedelta
-        
         session = self.get_session()
         
         try:

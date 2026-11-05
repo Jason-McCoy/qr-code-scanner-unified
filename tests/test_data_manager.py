@@ -174,6 +174,54 @@ class TestDataManager:
         deleted = data_manager.clear_old_scans(days=0)
         assert deleted == 1
 
+    def test_export_csv_neutralises_formulas(self, data_manager):
+        """QR content starting with = must not run as a spreadsheet formula"""
+        import csv
+        
+        data_manager.save_scan(
+            ScanResult(data='=HYPERLINK("http://evil.example","x")', format="QRCODE"),
+            tags=["a", "b"],
+        )
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = Path(tmpdir) / "out.csv"
+            assert data_manager.export_csv(str(output_path))
+            with open(output_path, newline="", encoding="utf-8-sig") as f:
+                rows = list(csv.DictReader(f))
+        
+        assert rows[0]["data"] == '\'=HYPERLINK("http://evil.example","x")'
+        # Tags as a plain list, not Python's "['a', 'b']"
+        assert rows[0]["tags"] == "a,b"
+    
+    def test_export_csv_non_english_text(self, data_manager):
+        """CSV is written as UTF-8 on every platform"""
+        data_manager.save_scan(ScanResult(data="Café 日本語 👍", format="QRCODE"))
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = Path(tmpdir) / "out.csv"
+            assert data_manager.export_csv(str(output_path))
+            assert "Café 日本語 👍" in output_path.read_text(encoding="utf-8-sig")
+    
+    def test_export_json_non_english_text(self, data_manager):
+        data_manager.save_scan(ScanResult(data="Café 日本語 👍", format="QRCODE"))
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = Path(tmpdir) / "out.json"
+            assert data_manager.export_json(str(output_path))
+            data = json.loads(output_path.read_text(encoding="utf-8"))
+            assert data[0]["data"] == "Café 日本語 👍"
+    
+    def test_database_folder_created(self):
+        """A DB_PATH in a folder that does not exist yet still works"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "new" / "sub" / "scans.db"
+            manager = DataManager(db_path=str(db_path))
+            try:
+                assert manager.save_scan(ScanResult(data="x", format="QRCODE")) is not None
+                assert db_path.exists()
+            finally:
+                manager.close()
+
 
 class TestQRCodeRecord:
     """Tests for QRCodeRecord model"""

@@ -5,7 +5,6 @@ Handles camera access and configuration on Android devices.
 """
 
 import logging
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 

@@ -5,12 +5,12 @@ Runs in separate thread to prevent UI blocking during scanning.
 """
 
 import logging
-from typing import Optional
+import time
 
 import cv2
 import numpy as np
 from PyQt5.QtCore import QObject, pyqtSignal
-from PyQt5.QtGui import QPixmap, QImage
+from PyQt5.QtGui import QImage
 
 from shared.qr_scanner import QRScanner
 from shared.data_manager import DataManager
@@ -21,9 +21,11 @@ logger = logging.getLogger(__name__)
 class CameraWorker(QObject):
     """Worker thread for camera operations"""
     
-    frame_ready = pyqtSignal(QPixmap)  # Emits processed frame for display
+    # QImage, not QPixmap: Qt does not allow QPixmap outside the GUI thread
+    frame_ready = pyqtSignal(QImage)   # Emits processed frame for display
     scan_result = pyqtSignal(dict)     # Emits scan result dictionary
     error_occurred = pyqtSignal(str)   # Emits error message
+    finished = pyqtSignal()            # Emitted when the loop has ended
     
     def __init__(self, scanner: QRScanner, manager: DataManager):
         super().__init__()
@@ -41,20 +43,23 @@ class CameraWorker(QObject):
                 # Capture frame
                 frame = self.scanner.capture_frame()
                 if frame is None:
+                    # No frame: wait a little instead of spinning the CPU
+                    time.sleep(0.05)
                     continue
                 
                 # Scan for QR codes
                 results = self.scanner.scan_frame(frame)
                 
-                # Draw detections on frame
+                # Draw every detection, but save each code only once per
+                # duplicate cooldown (it was saved on every frame before)
                 annotated_frame = self.scanner.draw_detections(frame, results)
+                new_results = self.scanner.filter_new(results)
                 
                 # Emit frame for display
-                pixmap = self._cv_to_pixmap(annotated_frame)
-                self.frame_ready.emit(pixmap)
+                self.frame_ready.emit(self._cv_to_qimage(annotated_frame))
                 
                 # Process and emit results
-                for result in results:
+                for result in new_results:
                     # Save to database
                     scan_id = self.manager.save_scan(result)
                     
@@ -72,14 +77,15 @@ class CameraWorker(QObject):
         finally:
             self.is_running = False
             logger.info("CameraWorker stopped")
+            self.finished.emit()
     
     def stop(self):
         """Stop the camera worker"""
         self.is_running = False
         logger.info("CameraWorker stop requested")
     
-    def _cv_to_pixmap(self, cv_frame: np.ndarray) -> QPixmap:
-        """Convert OpenCV frame to QPixmap for display"""
+    def _cv_to_qimage(self, cv_frame: np.ndarray) -> QImage:
+        """Convert OpenCV frame to QImage for display"""
         try:
             # Convert BGR to RGB
             rgb_frame = cv2.cvtColor(cv_frame, cv2.COLOR_BGR2RGB)
@@ -94,9 +100,10 @@ class CameraWorker(QObject):
                 QImage.Format_RGB888
             )
             
-            # Convert to QPixmap
-            return QPixmap.fromImage(qt_image)
+            # copy(): the QImage above points into rgb_frame's memory, which
+            # is freed when this function returns
+            return qt_image.copy()
         
         except Exception as e:
-            logger.error(f"Error converting frame to pixmap: {e}")
-            return QPixmap()
+            logger.error(f"Error converting frame to image: {e}")
+            return QImage()

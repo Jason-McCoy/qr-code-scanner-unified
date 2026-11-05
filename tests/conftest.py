@@ -10,8 +10,7 @@ import sys
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from shared.config import Config
-from shared.data_manager import DataManager
+from shared.data_manager import DataManager  # noqa: E402
 
 
 @pytest.fixture

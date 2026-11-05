@@ -6,7 +6,6 @@ Manages user interactions and business logic triggers.
 
 import logging
 from typing import Optional
-from datetime import datetime
 
 from shared.data_manager import DataManager
 from shared.qr_scanner import ScanResult

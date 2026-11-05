@@ -11,6 +11,23 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
+_BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def _path_from_env(name: str, default: Path) -> Path:
+    """
+    Read a path setting from the environment.
+
+    "~" is expanded, and a relative path (such as ./data in .env) is taken
+    relative to the project folder rather than the folder the command was
+    run from, so the database is in the same place however the app starts.
+    """
+    value = os.getenv(name)
+    if not value:
+        return default
+    path = Path(value).expanduser()
+    return path if path.is_absolute() else (_BASE_DIR / path)
+
 
 class Config:
     """Application configuration container"""
@@ -20,15 +37,17 @@ class Config:
     APP_VERSION = "1.0.0"
     
     # Paths
-    BASE_DIR = Path(__file__).parent.parent
-    DATA_DIR = Path(os.getenv("DATA_DIR", BASE_DIR / "data"))
-    DB_PATH = Path(os.getenv("DB_PATH", DATA_DIR / "qr_scanner.db"))
-    LOGS_DIR = Path(os.getenv("LOGS_DIR", BASE_DIR / "logs"))
+    BASE_DIR = _BASE_DIR
+    DATA_DIR = _path_from_env("DATA_DIR", BASE_DIR / "data")
+    DB_PATH = _path_from_env("DB_PATH", DATA_DIR / "qr_scanner.db")
+    LOGS_DIR = _path_from_env("LOGS_DIR", BASE_DIR / "logs")
     
     # Scanning configuration
     CAMERA_INDEX = int(os.getenv("CAMERA_INDEX", 0))
     SCAN_TIMEOUT = int(os.getenv("SCAN_TIMEOUT", 30))  # seconds
     MIN_CONFIDENCE = float(os.getenv("MIN_CONFIDENCE", 0.5))
+    # Seconds before the same code is reported again during continuous scanning
+    DUPLICATE_COOLDOWN = float(os.getenv("DUPLICATE_COOLDOWN", 5))
     
     # Image processing
     IMAGE_QUALITY = int(os.getenv("IMAGE_QUALITY", 95))
@@ -62,6 +81,7 @@ class Config:
             "db_path": str(cls.DB_PATH),
             "camera_index": cls.CAMERA_INDEX,
             "scan_timeout": cls.SCAN_TIMEOUT,
+            "duplicate_cooldown": cls.DUPLICATE_COOLDOWN,
             "auto_save": cls.AUTO_SAVE,
             "debug_mode": cls.DEBUG_MODE,
         }

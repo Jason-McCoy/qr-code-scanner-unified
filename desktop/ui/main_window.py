@@ -6,23 +6,26 @@ and results management.
 """
 
 import logging
-from typing import Optional, List
-from datetime import datetime
 
 from PyQt5.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QTableWidget, QTableWidgetItem,
-    QSplitter, QComboBox, QLineEdit, QMessageBox
+    QSplitter, QLineEdit, QMessageBox, QAbstractItemView,
+    QApplication, QFileDialog,
 )
-from PyQt5.QtGui import QPixmap, QImage, QFont, QColor
-from PyQt5.QtCore import Qt, QTimer, QThread, pyqtSignal
+from PyQt5.QtGui import QPixmap, QImage, QFont
+from PyQt5.QtCore import Qt, QThread
 
 from shared.config import Config
 from shared.qr_scanner import QRScanner
 from shared.data_manager import DataManager
+from shared.safety import safe_display
 
-from .camera import CameraWorker
-from .handlers import EventHandler
+# camera.py and handlers.py live in desktop/, one level up from desktop/ui/.
+# These were imported as ".camera" and ".handlers", which looked for
+# desktop/ui/camera.py and stopped the desktop app from starting.
+from ..camera import CameraWorker
+from ..handlers import EventHandler
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +108,7 @@ class MainWindow(QMainWindow):
         left_layout.addLayout(button_layout)
         
         # Scan stats
-        self.stats_label = QLabel(f"Scans: 0 | Format: All")
+        self.stats_label = QLabel("Scans: 0 | Format: All")
         self.stats_label.setStyleSheet("padding: 10px; background-color: #f5f5f5;")
         left_layout.addWidget(self.stats_label)
         
@@ -137,6 +140,10 @@ class MainWindow(QMainWindow):
         self.results_table.setColumnWidth(1, 400)
         self.results_table.setColumnWidth(2, 100)
         self.results_table.setColumnWidth(3, 200)
+        # Select whole rows (needed by Copy Selected) and keep cells read-only
+        self.results_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.results_table.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.results_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.results_table.itemSelectionChanged.connect(self.on_result_selected)
         right_layout.addWidget(self.results_table)
         
@@ -199,8 +206,11 @@ class MainWindow(QMainWindow):
             # Connect signals
             self.camera_worker.frame_ready.connect(self.on_frame_ready)
             self.camera_worker.scan_result.connect(self.on_scan_result)
+            self.camera_worker.error_occurred.connect(self.on_worker_error)
             
             self.camera_thread.started.connect(self.camera_worker.run)
+            # When the worker's loop ends, end the thread's event loop too
+            self.camera_worker.finished.connect(self.camera_thread.quit)
             self.camera_thread.start()
             
             logger.info("Scanner started successfully")
@@ -223,9 +233,16 @@ class MainWindow(QMainWindow):
                 self.camera_worker.stop()
             
             if self.camera_thread:
+                # The worker's finished signal quits the thread. quit() is
+                # also called here in case the loop has already ended. The
+                # wait has a limit so the window cannot freeze forever.
                 self.camera_thread.quit()
-                self.camera_thread.wait()
+                if not self.camera_thread.wait(5000):
+                    logger.warning("Camera thread did not stop within 5 seconds")
+                self.camera_thread = None
+                self.camera_worker = None
             
+            # Release the camera only after the worker has stopped reading it
             self.scanner.stop()
             
             self.start_button.setEnabled(True)
@@ -237,9 +254,18 @@ class MainWindow(QMainWindow):
         except Exception as e:
             logger.error(f"Error stopping scanner: {e}")
     
-    def on_frame_ready(self, pixmap: QPixmap):
-        """Handle camera frame ready signal"""
+    def on_frame_ready(self, image: QImage):
+        """Handle camera frame ready signal (runs in the GUI thread)"""
+        # QPixmap may only be made in the GUI thread, so the worker sends a
+        # QImage and the pixmap is made here
+        pixmap = QPixmap.fromImage(image)
         self.camera_label.setPixmap(pixmap.scaledToWidth(self.camera_label.width()))
+    
+    def on_worker_error(self, message: str):
+        """Show an error from the camera worker and reset the buttons"""
+        logger.error(f"Camera worker error: {message}")
+        self.stop_scanning()
+        QMessageBox.critical(self, "Camera error", message)
     
     def on_scan_result(self, result_dict: dict):
         """Handle new scan result"""
@@ -247,40 +273,41 @@ class MainWindow(QMainWindow):
             self.scan_results.append(result_dict)
             self.update_results_table()
             self.update_stats()
-            logger.debug(f"Scan result received: {result_dict['data'][:50]}")
+            logger.debug(f"Scan result received: {safe_display(result_dict['data'], 50)}")
         
         except Exception as e:
             logger.error(f"Error handling scan result: {e}")
     
     def update_results_table(self):
         """Update the results table with current data"""
-        self.results_table.setRowCount(len(self.scan_results))
+        self._fill_table(self.scan_results)
+    
+    def _fill_table(self, results):
+        """Show the given results in the table"""
+        self.results_table.setRowCount(len(results))
         
-        for row, result in enumerate(self.scan_results):
+        for row, result in enumerate(results):
             # ID
-            id_item = QTableWidgetItem(str(result.get('id', 'N/A')))
-            self.results_table.setItem(row, 0, id_item)
+            self.results_table.setItem(row, 0, QTableWidgetItem(str(result.get('id', 'N/A'))))
             
-            # Data
-            data = result.get('data', '')[:100]
-            data_item = QTableWidgetItem(data)
+            # Data: show a short, escaped version, keep the full text for copying
+            full_data = result.get('data', '')
+            data_item = QTableWidgetItem(safe_display(full_data, 100))
+            data_item.setData(Qt.UserRole, full_data)
+            data_item.setToolTip(safe_display(full_data, 1000))
             self.results_table.setItem(row, 1, data_item)
             
             # Format
-            format_item = QTableWidgetItem(result.get('format', 'N/A'))
-            self.results_table.setItem(row, 2, format_item)
+            self.results_table.setItem(row, 2, QTableWidgetItem(result.get('format', 'N/A')))
             
             # Timestamp
-            timestamp = result.get('timestamp', 'N/A')
-            timestamp_item = QTableWidgetItem(timestamp)
-            self.results_table.setItem(row, 3, timestamp_item)
+            self.results_table.setItem(row, 3, QTableWidgetItem(result.get('timestamp', 'N/A')))
     
     def update_stats(self):
         """Update statistics display"""
         stats = self.manager.get_stats()
-        self.stats_label.setText(
-            f"Scans: {stats['total_scans']} | Formats: {', '.join(stats['formats']) if stats['formats'] else 'None'}"
-        )
+        formats = ", ".join(stats["formats"]) if stats["formats"] else "None"
+        self.stats_label.setText(f"Scans: {stats['total_scans']} | Formats: {formats}")
     
     def filter_results(self):
         """Filter results based on search input"""
@@ -291,13 +318,7 @@ class MainWindow(QMainWindow):
             return
         
         filtered = [r for r in self.scan_results if query.lower() in r['data'].lower()]
-        
-        self.results_table.setRowCount(len(filtered))
-        for row, result in enumerate(filtered):
-            self.results_table.setItem(row, 0, QTableWidgetItem(str(result.get('id', 'N/A'))))
-            self.results_table.setItem(row, 1, QTableWidgetItem(result.get('data', '')[:100]))
-            self.results_table.setItem(row, 2, QTableWidgetItem(result.get('format', 'N/A')))
-            self.results_table.setItem(row, 3, QTableWidgetItem(result.get('timestamp', 'N/A')))
+        self._fill_table(filtered)
     
     def on_result_selected(self):
         """Handle result selection in table"""
@@ -313,7 +334,10 @@ class MainWindow(QMainWindow):
         )
         
         if reply == QMessageBox.Yes:
+            # Clears this window's list only; saved scans stay in the database
             self.scan_results = []
+            # Let codes cleared from the list be picked up again straight away
+            self.scanner.reset_duplicates()
             self.update_results_table()
             self.search_input.clear()
             logger.info("Results cleared")
@@ -321,8 +345,6 @@ class MainWindow(QMainWindow):
     def export_json(self):
         """Export results to JSON"""
         try:
-            from PyQt5.QtWidgets import QFileDialog
-            
             path, _ = QFileDialog.getSaveFileName(
                 self,
                 "Export to JSON",
@@ -344,8 +366,6 @@ class MainWindow(QMainWindow):
     def export_csv(self):
         """Export results to CSV"""
         try:
-            from PyQt5.QtWidgets import QFileDialog
-            
             path, _ = QFileDialog.getSaveFileName(
                 self,
                 "Export to CSV",
@@ -367,21 +387,23 @@ class MainWindow(QMainWindow):
     def copy_selected(self):
         """Copy selected result to clipboard"""
         try:
-            from PyQt5.QtWidgets import QApplication
-            
             selected_rows = self.results_table.selectionModel().selectedRows()
             if not selected_rows:
                 QMessageBox.warning(self, "No Selection", "Please select a result to copy")
                 return
             
             row = selected_rows[0].row()
-            data = self.results_table.item(row, 1).text()
+            item = self.results_table.item(row, 1)
+            # Copy the full scanned text, not the shortened table text
+            data = item.data(Qt.UserRole)
+            if data is None:
+                data = item.text()
             
             clipboard = QApplication.clipboard()
             clipboard.setText(data)
             
             QMessageBox.information(self, "Success", "Copied to clipboard")
-            logger.info(f"Copied to clipboard: {data[:50]}")
+            logger.info(f"Copied to clipboard: {safe_display(data, 50)}")
         
         except Exception as e:
             logger.error(f"Error copying to clipboard: {e}")
