@@ -602,3 +602,15 @@ Saved 1 code(s) to the database.
 - Decoding a QR code on the phone has not been shown yet. The successful photo was of a barcode, not a QR code. pyzbar reads both, and QR decoding was tested here on test images, but not on the phone.
 - The saved database entry itself was not looked at on the phone (for example by exporting it).
 - Android live camera mode (`android.qr_scanner_android`) was not run.
+
+**Push.** Jason answered "Yes, push it" on November 5, 2026 at 04:54 UTC.
+
+```
+$ git push -u origin claude/project-thread-6g31ff
+   c5c15cd..0de44a5  claude/project-thread-6g31ff -> claude/project-thread-6g31ff
+$ git ls-remote origin refs/heads/main refs/heads/claude/project-thread-6g31ff
+0de44a55c4493fd2969a44e1da0ee9747ca0bcc0	refs/heads/claude/project-thread-6g31ff
+042a65d55d3b0a8d40355ee08d0dd71a480e98e7	refs/heads/main
+```
+
+Fast-forward, no force. Afterwards, the GitHub API showed the branch at `0de44a5`, the same as the local head. `main` was unchanged and there were no pull requests. This note was added in one more commit, pushed to the same branch.
