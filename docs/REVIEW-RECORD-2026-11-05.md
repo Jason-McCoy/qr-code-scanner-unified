@@ -647,3 +647,24 @@ The GitHub API showed the same: `main` at `739dea2`, the same as local. The revi
 This section was added in one more commit, first on the review branch and then on `main`. Both pushes were fast-forwards.
 
 **Still open after the merge:** reading a QR code on the phone; Android live camera mode; a real webcam and Windows for the desktop app; testing in Excel, LibreOffice and Google Sheets; and the items in section 7 that were left for Jason's decision.
+
+## 13. Phone runs after the merge (November 5, 2026)
+
+On `main` (`faeb43b`, after `git pull` reported "Already up to date"), Jason ran `python -m android.scan_latest --force` three times in Termux. Copied from his screenshot:
+
+```
+Scanning: IMG_20261104_230817751_HDR.jpg
+No codes found. Try a closer, sharper, well-lit photo.
+Scanning: IMG_20261104_231024131_HDR.jpg
+No codes found. Try a closer, sharper, well-lit photo.
+Scanning: IMG_20261104_231150023_HDR.jpg
+No codes found. Try a closer, sharper, well-lit photo.
+```
+
+He also sent a photo of the code he was trying to scan. It is a small rectangular 2D code on a P&G box, solid along two edges, which looks like a **Data Matrix** code, not a QR code. I identified it by eye only and did not decode it.
+
+**This result is expected.** The app decodes with zbar through pyzbar, and zbar has no Data Matrix decoder. The symbol types pyzbar lists in this environment (pyzbar with zbar 0.23.93) are: EAN-2, EAN-5, EAN-8, UPC-E, ISBN-10, UPC-A, EAN-13, ISBN-13, Composite, Interleaved 2 of 5, DataBar, DataBar Expanded, Codabar, Code 39, PDF417, QR Code, SQ Code, Code 93 and Code 128. Data Matrix and Aztec are not among them. The zbar version on Jason's phone was not checked; I know of no zbar version with Data Matrix support.
+
+**Not a bug fix in this round.** Reading Data Matrix would need another library, such as pylibdmtx (libdmtx). Whether that library installs and works in Termux was not checked.
+
+**Still open:** reading a QR code on the phone. A QR code has three large squares in its corners.
