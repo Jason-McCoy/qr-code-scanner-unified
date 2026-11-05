@@ -86,6 +86,9 @@ class QRScanner:
         # (format, data) -> time.monotonic() when last seen, used to stop the
         # same code being saved once per video frame
         self._last_seen: Dict[Tuple[str, str], float] = {}
+        # (format, data) -> time.monotonic() before which a code whose save
+        # failed is not retried (see mark_failed())
+        self._retry_at: Dict[Tuple[str, str], float] = {}
 
         logger.info(f"QRScanner initialized with camera index: {camera_index}")
 
@@ -202,17 +205,38 @@ class QRScanner:
             results: Results from scan_frame()
             now: Current time from time.monotonic() (for tests)
 
+        Two codes count as the same only when both the format (QRCODE,
+        EAN13, ...) and the exact text match. A code that stays in view
+        keeps counting as seen; once it has been out of view for the
+        cooldown, it is reported again.
+
+        Args:
+            results: Results from scan_frame()
+            now: Current time from time.monotonic() (for tests)
+
         Returns:
             List[ScanResult]: Results not seen within the cooldown
         """
-        if self.duplicate_cooldown <= 0:
-            return list(results)
-
         now = time.monotonic() if now is None else now
         fresh = []
         for result in results:
             key = (result.format, result.data)
-            last = self._last_seen.get(key)
+
+            # A code whose save failed is retried once its short retry
+            # delay has passed, even if it never left view
+            retry_at = self._retry_at.get(key)
+            if retry_at is not None:
+                if now < retry_at:
+                    continue
+                del self._retry_at[key]
+                last = None
+            else:
+                last = self._last_seen.get(key)
+
+            if self.duplicate_cooldown <= 0:
+                fresh.append(result)
+                continue
+
             # Refresh the time even for duplicates, so a code that stays in
             # view is reported once, not once per cooldown period
             self._last_seen[key] = now
@@ -226,9 +250,31 @@ class QRScanner:
 
         return fresh
 
+    def mark_failed(
+        self, result: ScanResult, retry_after: Optional[float] = None, now: Optional[float] = None
+    ):
+        """
+        Record that saving a reported code failed, so it is not treated as
+        done.
+
+        Without this, a code whose database write failed counted as seen
+        and was not tried again while it stayed in view. After this call
+        the code is reported again by filter_new() once retry_after seconds
+        have passed (a short delay, so a database that keeps failing is
+        not retried on every frame). retry_after defaults to
+        Config.SAVE_RETRY_DELAY (1 second).
+        """
+        now = time.monotonic() if now is None else now
+        if retry_after is None:
+            retry_after = Config.SAVE_RETRY_DELAY
+        key = (result.format, result.data)
+        self._last_seen.pop(key, None)
+        self._retry_at[key] = now + retry_after
+
     def reset_duplicates(self):
         """Forget which codes have been seen, so they are reported again"""
         self._last_seen.clear()
+        self._retry_at.clear()
 
     def scan_continuous(self, callback=None, duration: Optional[int] = None) -> List[ScanResult]:
         """

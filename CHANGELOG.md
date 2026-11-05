@@ -29,10 +29,17 @@ docs/REVIEW-RECORD-2026-11-05.md
 - scan_latest marked a photo as scanned even when saving failed
 - .env.example started with a Python docstring that python-dotenv could not parse
 - QUICKSTART.md was a corrupted tool payload and stated the MIT license
+- Follow-up (record section 9): live scanning on desktop and Android no
+  longer treats a code as done when its database write fails; it retries
+- Follow-up: desktop worker now releases the camera itself on stop or error;
+  a Stop that timed out no longer aborts the app (bug from this review)
+- Follow-up: CSV guard also catches line feed, leading spaces and invisible
+  characters before a formula, and full-width = + - @
 
 ### Added
 - shared/safety.py (safe_display, csv_safe_cell), shared/logging_setup.py
 - QRScanner.filter_new() and reset_duplicates(); DUPLICATE_COOLDOWN setting
+- QRScanner.mark_failed(); SAVE_RETRY_DELAY setting
 - scan_latest --verbose, upper-case photo extensions, CAMERA_DIR setting
 - Tests: real QR image fixtures, duplicate filter, safety helpers, CSV/JSON
   export, entry points, desktop window (offscreen)

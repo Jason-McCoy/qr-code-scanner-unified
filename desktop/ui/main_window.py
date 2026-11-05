@@ -52,6 +52,12 @@ class MainWindow(QMainWindow):
         self.is_scanning = False
         self.scan_results = []
 
+        # How long Stop waits for the camera thread (milliseconds)
+        self.stop_timeout_ms = 5000
+        # Threads that did not stop in time; kept so Python does not delete
+        # a QThread that is still running (Qt aborts if that happens)
+        self._stopping_threads = []
+
         logger.info("MainWindow initialized")
 
         # Build UI
@@ -232,30 +238,58 @@ class MainWindow(QMainWindow):
             if self.camera_worker:
                 self.camera_worker.stop()
 
+            stopped_in_time = True
             if self.camera_thread:
-                # The worker's finished signal quits the thread. quit() is
-                # also called here in case the loop has already ended. The
-                # wait has a limit so the window cannot freeze forever.
+                # The worker releases the camera and quits the thread when
+                # its loop ends. quit() is also called here in case the loop
+                # has already ended. The wait has a limit so the window
+                # cannot freeze forever.
                 self.camera_thread.quit()
-                if not self.camera_thread.wait(5000):
-                    logger.warning("Camera thread did not stop within 5 seconds")
+                if not self.camera_thread.wait(self.stop_timeout_ms):
+                    stopped_in_time = False
+                    # The worker is stuck, most likely inside a camera read
+                    # that has not returned. Do not release the camera from
+                    # here (that could crash inside OpenCV) and do not drop
+                    # the thread. The worker releases the camera itself if
+                    # the read ever returns; Start stays off until then.
+                    logger.warning(
+                        f"Camera thread did not stop within {self.stop_timeout_ms} ms; "
+                        "waiting for it in the background"
+                    )
+                    thread = self.camera_thread
+                    worker = self.camera_worker
+                    self._stopping_threads.append((thread, worker))
+                    thread.finished.connect(lambda: self._on_late_thread_finished(thread))
                 self.camera_thread = None
                 self.camera_worker = None
 
-            # Release the camera only after the worker has stopped reading it
-            self.scanner.stop()
-
-            self.start_button.setEnabled(True)
             self.stop_button.setEnabled(False)
-            self.camera_label.setText("Camera Preview\n(Click 'Start Scanning' to begin)")
-
-            logger.info("Scanner stopped")
+            if stopped_in_time:
+                # Worker has ended; stop() again is harmless if it already did
+                self.scanner.stop()
+                self.start_button.setEnabled(True)
+                self.camera_label.setText("Camera Preview\n(Click 'Start Scanning' to begin)")
+                logger.info("Scanner stopped")
+            else:
+                self.start_button.setEnabled(False)
+                self.camera_label.setText("Camera is still stopping...")
 
         except Exception as e:
             logger.error(f"Error stopping scanner: {e}")
 
+    def _on_late_thread_finished(self, thread):
+        """A camera thread that missed the Stop time limit has now ended"""
+        self._stopping_threads = [(t, w) for t, w in self._stopping_threads if t is not thread]
+        logger.info("Camera thread finished after the time limit")
+        if not self._stopping_threads and not self.is_scanning:
+            self.start_button.setEnabled(True)
+            self.camera_label.setText("Camera Preview\n(Click 'Start Scanning' to begin)")
+
     def on_frame_ready(self, image: QImage):
         """Handle camera frame ready signal (runs in the GUI thread)"""
+        if not self.is_scanning:
+            # A frame that was already queued when Stop was pressed
+            return
         # QPixmap may only be made in the GUI thread, so the worker sends a
         # QImage and the pixmap is made here
         pixmap = QPixmap.fromImage(image)

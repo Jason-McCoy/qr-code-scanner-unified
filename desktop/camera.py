@@ -63,12 +63,16 @@ class CameraWorker(QObject):
                     # Save to database
                     scan_id = self.manager.save_scan(result)
 
-                    if scan_id:
+                    if scan_id is not None:
                         # Emit result dictionary
                         result_dict = result.to_dict()
                         result_dict['id'] = scan_id
                         self.scan_result.emit(result_dict)
                         logger.debug(f"Scan saved with ID {scan_id}")
+                    else:
+                        # Not saved: do not count it as done, try again shortly
+                        self.scanner.mark_failed(result)
+                        logger.warning("Scan not saved; will retry")
 
         except Exception as e:
             logger.error(f"Error in CameraWorker: {e}")
@@ -76,6 +80,14 @@ class CameraWorker(QObject):
 
         finally:
             self.is_running = False
+            # Release the camera here, in the thread that reads it, whether
+            # the loop ended normally, was stopped or raised an error.
+            # Releasing it from the GUI thread while a read was in progress
+            # could crash inside OpenCV.
+            try:
+                self.scanner.stop()
+            except Exception as e:
+                logger.error(f"Error releasing camera: {e}")
             logger.info("CameraWorker stopped")
             self.finished.emit()
 

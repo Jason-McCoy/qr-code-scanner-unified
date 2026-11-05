@@ -74,7 +74,9 @@ def main():
                 print(f"✓ Scanned: {safe_display(result.data, 60)}")
                 scan_id = manager.save_scan(result)
                 if scan_id is None:
-                    print("  Not saved (see log)\n")
+                    # Not saved: do not count it as done, try again shortly
+                    scanner.mark_failed(result)
+                    print("  Not saved (see log), will retry\n")
                 else:
                     print(f"  Saved with ID: {scan_id}\n")
 

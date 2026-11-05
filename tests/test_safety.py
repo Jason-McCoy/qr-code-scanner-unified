@@ -24,10 +24,10 @@ class TestSafeDisplay:
 
     def test_right_to_left_override_escaped(self):
         # U+202E can make "moc.live//:sptth" look like a different link
-        assert safe_display("abc‮def") == "abc\\u202edef"
+        assert safe_display("abc\u202edef") == "abc\\u202edef"
 
     def test_non_english_text_and_emoji_kept(self):
-        text = "Café Ελληνικά 日本語 👩‍💻"
+        text = "Café Ελληνικά 日本語 👩\u200d💻"
         assert safe_display(text) == text
 
     def test_max_length(self):

@@ -10,14 +10,40 @@ or a CSV cell without changing what is stored in the database.
 import unicodedata
 
 # Characters that start a formula when a CSV cell is opened in a spreadsheet
-# (Excel, LibreOffice, Google Sheets). See OWASP "CSV Injection".
-_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+# (Excel, LibreOffice, Google Sheets). The first six are the OWASP "CSV
+# Injection" list. Line feed and the full-width forms (U+FF1D = , U+FF0B + ,
+# U+FF0D - , U+FF20 @ ) are added as a precaution: some spreadsheet setups,
+# such as East Asian input settings, may treat them like their ASCII forms.
+# Escaping a harmless cell only adds a visible apostrophe, so the list errs
+# on the side of escaping.
+_FORMULA_PREFIXES = (
+    "=", "+", "-", "@", "\t", "\r", "\n",
+    "\uff1d", "\uff0b", "\uff0d", "\uff20",
+)
+
+
+# Leading characters skipped before the check, because a spreadsheet may trim
+# them on import and then see the formula behind them: spaces, no-break
+# space, other Unicode spaces, zero-width characters, the byte-order mark and
+# other control characters.
+def _skip_leading_blanks(value: str) -> str:
+    i = 0
+    while i < len(value):
+        ch = value[i]
+        if ch in _FORMULA_PREFIXES:
+            break
+        if ch.isspace() or unicodedata.category(ch) in ("Cc", "Cf", "Zs"):
+            i += 1
+            continue
+        break
+    return value[i:]
+
 
 # Invisible format characters that ordinary text needs: zero-width
 # non-joiner and zero-width joiner (used in many scripts and in emoji such
 # as family or profession emoji). Other format characters, such as the
 # right-to-left override U+202E that can disguise a link, are escaped.
-_ALLOWED_FORMAT_CHARS = {"‌", "‍"}
+_ALLOWED_FORMAT_CHARS = {"\u200c", "\u200d"}
 
 
 def safe_display(text: str, max_length: int = 0) -> str:
@@ -62,9 +88,12 @@ def csv_safe_cell(value):
 
     A cell that begins with =, +, -, @, tab or carriage return is run as a
     formula by most spreadsheet programs. Prefixing a single quote makes
-    the spreadsheet show it as plain text. Non-string values are returned
-    unchanged.
+    the spreadsheet show it as plain text. The check also looks past
+    leading spaces and invisible characters, and catches line feed and
+    full-width forms (see _FORMULA_PREFIXES). Non-string values are
+    returned unchanged. This also escapes text such as "-5" or "+1 555",
+    which then shows with a leading apostrophe.
     """
-    if isinstance(value, str) and value.startswith(_FORMULA_PREFIXES):
+    if isinstance(value, str) and _skip_leading_blanks(value).startswith(_FORMULA_PREFIXES):
         return "'" + value
     return value

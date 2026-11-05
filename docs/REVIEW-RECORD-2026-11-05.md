@@ -4,7 +4,7 @@
 **Requested by:** Jason McCoy
 **Done by:** Claude (AI), working in a local clone
 **Starting point:** `main` at commit `042a65d` ("scan_latest: skip already-scanned photos, add --force; ignore local data/")
-**Branch:** `claude/project-thread-6g31ff` (local commits only; nothing pushed, no pull request, `main` untouched)
+**Branch:** `claude/project-thread-6g31ff` (pushed on Jason's yes, see section 8; no pull request, `main` untouched). Section 9 is a follow-up on November 5, 2026 after a second review by GPT.
 
 ## How to read this record
 
@@ -291,3 +291,154 @@ Checked afterwards through the GitHub API: the repository has two branches, `mai
 The "repository moved" line only reflects the letter case of the account name in the local clone's address (`jason-mccoy` versus `Jason-McCoy`). The push went to the right repository.
 
 This section was added in one more commit after `2bc8a1b`, pushed to the same branch. No pull request was opened and nothing was merged. Merging is Jason's decision.
+
+## 9. Follow-up on GPT's review (November 5, 2026)
+
+Jason shared a review of this branch by GPT and said "Yes, work through them". GPT gave a conditional approval for more testing and named four things to prove: the duplicate filter, failed saves on the live paths, camera release, and CSV formula handling. I checked each one in the code, wrote tests that would fail if the point did not hold, and fixed what did not hold.
+
+Starting point for this section: commit `39b90cd` (the pushed branch). All changes below are in one new local commit, not pushed.
+
+### 9.1 Results in short
+
+| Point | What GPT asked | Result at `39b90cd` | Change |
+|---|---|---|---|
+| 1 | Duplicate filter must not hide real new scans | **Held.** All 10 new tests passed on the old code. | None to behaviour; docstring now says exactly what "same" means |
+| 2 | A failed database write must not mark a code as done | **Did not hold** on desktop or Android live scanning (confirmed) | Failed codes are retried after `SAVE_RETRY_DELAY` (default 1 s) |
+| 3 | Camera must be released on error, timeout and stop | **Did not hold** in the desktop worker, and a stuck Stop **crashed the app** (confirmed) | Worker releases the camera itself; a stuck thread is kept, not dropped |
+| 4 | More formula tricks in CSV, and say what was tested | **Partly held.** 14 of 25 payloads were escaped; 11 were not (confirmed) | Wider escaping; spreadsheet apps still **not tested** |
+
+### 9.2 Point 1: duplicate filter
+
+**Finding:** held. The filter keys on (format, exact text) and only holds back the same code seen again within `DUPLICATE_COOLDOWN` (default 5 s) of its last sighting.
+
+**Tests** (`tests/test_review_followup.py`, class `TestDuplicateFilterStates`, 10 tests), all passing on both old and new code:
+
+- the same code is saved again after it leaves the view for longer than the cooldown, and also after the cooldown with no gap;
+- a short absence (shorter than the cooldown) does not count as a new scan, by design;
+- the cooldown runs from the last sighting, so a code held in view stays one scan;
+- the same text in a different format (QR versus Code 128) counts as different;
+- different text is never held back, including a new code that appears while an old one is still being held back, codes that alternate, and text that differs only in letter case or a trailing space;
+- the same code twice in one frame is saved once;
+- old entries are pruned so memory does not grow.
+
+**Change:** none to behaviour. The `filter_new()` docstring now says that "same" means the same format and exactly the same text.
+
+**Known limit (by design):** two different physical labels that carry exactly the same text, shown one after another within the cooldown, are counted as one scan.
+
+### 9.3 Point 2: failed saves on the live paths
+
+**Finding:** did not hold. Confirmed on desktop by running it; confirmed on Android from the code (the old code has no way to retry).
+
+`filter_new()` records a code as seen *before* the save is tried. In the old code, when `save_scan()` returned `None` (a database error), nothing undid that, so the code was held back for the full cooldown, and for as long as it stayed in view. It was never saved unless it left the view and came back.
+
+- Desktop (`desktop/camera.py`): the old worker emitted nothing and only skipped it.
+- Android live mode (`android/qr_scanner_android.py`): printed "Not saved (see log)" and moved on.
+- `android/scan_latest.py` (Termux photo mode) was already fixed in the first round (it does not mark a photo done if the save failed).
+
+Demonstration with the real `CameraWorker`, a real QR image and a database that fails the first write only (`logs/failed-save-demo.txt`):
+
+```
+old code (39b90cd):
+30 frames of one code, first write fails: save attempts=1, saved=0
+new code (working tree):
+30 frames of one code, first write fails: save attempts=2, saved=1
+```
+
+**Change:**
+
+- New `QRScanner.mark_failed(result)`: forgets that the code was seen and allows it again after `SAVE_RETRY_DELAY` seconds (new setting, default 1 s, in `shared/config.py` and `.env.example`). The delay stops a broken database from being hit 30 times a second.
+- The desktop worker and Android live mode call it when `save_scan()` returns `None`. Android now prints "Not saved (see log), will retry".
+- `reset_duplicates()` clears pending retries too.
+
+**Tests:** a failed code is retried while still in view; a failure does not affect other codes; reset clears retries; the desktop worker retries end to end; Android `main()` retries end to end with a fake camera and a database that fails once.
+
+**Known limit:** with `DUPLICATE_COOLDOWN=0` (filter off), a failed code is still held back for the retry delay.
+
+### 9.4 Point 3: camera release
+
+**Finding:** did not hold, and testing it found a crash that I introduced in the first round. Both confirmed by running them.
+
+1. The desktop worker never released the camera itself. It relied on the window calling `scanner.stop()` after the thread ended. When the worker stopped on its own, for example after a read error, the camera stayed open until the next Stop or Start.
+2. **Crash (my own bug from commit `cc2d882`):** when Stop waited 5 seconds and the camera thread had still not ended, the old code set `self.camera_thread = None` while the thread was running. Qt destroys a running `QThread` with an abort, so Python died. Old code, with a fake camera whose read blocks (`logs/followup-stuck-stop-against-39b90cd.txt`):
+
+```
+Fatal Python error: Aborted
+  File ".../desktop/ui/main_window.py", line 242 in stop_scanning
+[exit 134]
+```
+
+   The old code also released the camera from the window's thread while the worker could still be inside a read, which can crash inside OpenCV.
+
+**Change:**
+
+- `CameraWorker.run()` now releases the camera in its `finally` block, in the thread that reads it, whether the loop ended normally, was stopped, or raised.
+- Stop still waits up to 5 seconds (`stop_timeout_ms`). If the thread does not end in time, the window keeps the thread and worker alive, does not release the camera itself, shows "Camera is still stopping...", and keeps Start disabled. When the thread ends later, Start is turned back on.
+- Frames that arrive after Stop are ignored.
+
+**What the 5-second timeout does now (documented as GPT asked):** it only stops the window from freezing. It cannot force a stuck camera read to return. The camera stays held until that read returns; then the worker releases it and the thread ends. If a read never returns, the camera stays held until the app exits.
+
+**Tests:** `scan_continuous()` releases the camera when the callback raises and when a read raises; the worker releases on a read error and on stop; a stuck Stop with a blocking fake camera (timeout shortened to 300 ms) no longer crashes, shows the stopping message, and turns Start back on when the read returns; a normal Stop releases the camera.
+
+**Not verified:** a real camera; a read that never returns (I tested one that returns late). Closing the app while a thread is still stuck may still trigger Qt's warning or abort at exit, since a running thread is destroyed then. The operating system frees the camera when the process ends.
+
+### 9.5 Point 4: CSV formula handling
+
+**Finding:** partly held. The old check looked only at the first character for = + - @ tab and carriage return. 25 payloads were tested against the old code; 14 were escaped and 11 were not:
+
+- **Already escaped:** the six basic prefixes, DDE payloads (`=cmd|' /C calc'!A0` and three variants, including one behind @), `=HYPERLINK`, `=IMPORTXML` (Google Sheets), `=WEBSERVICE` (Excel), `=DDE(...)` (LibreOffice).
+- **Not escaped:** a line feed before =; one or four spaces before =; no-break space, ideographic space, zero-width space or byte-order mark before =; full-width = + - @.
+
+**Change** (`shared/safety.py`):
+
+- Line feed added to the prefixes, and the full-width forms U+FF1D, U+FF0B, U+FF0D, U+FF20.
+- The check now skips leading spaces, Unicode spaces, zero-width and other invisible characters and control characters before looking for a prefix, because a spreadsheet may trim them on import.
+- Each payload is tested in the data, tags and notes columns. Four safe values (a URL with `=` inside, `hello =1+1`, a Wi-Fi code, an empty string) are tested to stay unchanged.
+
+**Stated plainly:** Excel, LibreOffice Calc and Google Sheets were **not tested**. The tests prove what the export writes (an apostrophe before the cell), not how any spreadsheet app treats it. Whether these apps trim leading invisible characters or treat full-width signs as formulas was not checked; that part is a precaution, not verified behaviour.
+
+**Known limits:** text such as `-5` or `+1 555 0100` now shows with a leading apostrophe when opened in a spreadsheet. Exports keep raw control characters by design (section 7).
+
+### 9.6 GPT's other points
+
+- **Coverage:** the first round's figures (68% before, 77% after) measured `shared/` only. Measured now across `shared/`, `desktop/` and `android/`: **67%** overall (`shared/` modules 82% to 100%, `desktop/camera.py` 92%, `desktop/ui/main_window.py` 79%, `android/qr_scanner_android.py` 77%). The untested files are the placeholders, the desktop launcher and `android/scan_latest.py` (tested only through separate processes, which coverage does not follow).
+- **`logging_setup.py` at 0%** was a measurement limit, as GPT said: it ran only in separate processes. It now shows 94%, because the new Android test calls `main()` in the test process.
+- **`safe_display()`** is output escaping only. It stops control characters from acting on a terminal or log; it does not judge whether a link or Wi-Fi code is safe. The app never opens links or runs content.
+- **Stored data:** the database and exports keep the exact scanned text by design, so nothing is lost. Escaping happens only when text is shown, and CSV cells get a formula guard.
+
+### 9.7 A mistake I found in my own files
+
+The Write and Edit tools I used turned some `\u` escapes into the raw invisible characters themselves. One raw right-to-left override (U+202E) and one zero-width joiner were in `tests/test_safety.py` in pushed commit `cc2d882`, and the same problem had affected `_ALLOWED_FORMAT_CHARS` in `shared/safety.py` during this round. Tests still passed, but invisible characters in source code are a known way to hide code (the "Trojan Source" problem), so they are now written as `\u` escapes. A scan of every tracked file now finds none (command below).
+
+### 9.8 Tests run, with actual output
+
+New tests (49, deselecting the stuck-Stop test that aborts the process) run against the old code `39b90cd` (`logs/followup-tests-against-39b90cd.txt`):
+
+```
+19 failed, 30 passed, 1 deselected in 0.82s
+```
+
+- 13 failures were behaviour: 11 CSV payloads not escaped, and 2 worker-release tests where `cap.released` was False.
+- 6 failures (5 failed-save tests and 1 normal-stop test) were `AttributeError`, because `mark_failed`, `SAVE_RETRY_DELAY` and `_stopping_threads` did not exist yet. Those 6 show the missing API, not behaviour by themselves; the behaviour is shown by the demo in 9.3.
+- The stuck-Stop test run alone on old code: `Fatal Python error: Aborted`, exit 134 (9.4).
+
+After the changes (`logs/followup-after-pytest.txt`, `logs/followup-after-flake8.txt`):
+
+```
+$ QT_QPA_PLATFORM=offscreen pytest tests -q --cov=shared --cov=desktop --cov=android
+113 passed in 8.49s
+TOTAL                            1054    351    67%
+
+$ flake8 --max-line-length=100 shared desktop android tests
+flake8 exit 0
+```
+
+Test count: 63 after the first round, 113 now (50 new in `tests/test_review_followup.py`). The scan for invisible characters is in `logs/followup-invisible-scan.txt`.
+
+### 9.9 Still open
+
+- **Not tested in any spreadsheet app:** Excel, LibreOffice Calc, Google Sheets.
+- **Not run on real hardware:** a real camera on desktop, Termux or Pydroid on Jason's phone, Windows.
+- **A camera read that never returns** keeps the camera held until the app exits; closing the app in that state may log a Qt warning or abort.
+- **Same text on two labels** within the cooldown counts as one scan (by design).
+- **The phone test from the first round** (`python -m android.scan_latest --force` in Termux) is still Jason's to run.
+- Everything in section 7 that was left for Jason's decision is unchanged.

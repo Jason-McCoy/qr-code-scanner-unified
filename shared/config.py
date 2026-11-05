@@ -48,6 +48,8 @@ class Config:
     MIN_CONFIDENCE = float(os.getenv("MIN_CONFIDENCE", 0.5))
     # Seconds before the same code is reported again during continuous scanning
     DUPLICATE_COOLDOWN = float(os.getenv("DUPLICATE_COOLDOWN", 5))
+    # Seconds before a code whose save failed is tried again
+    SAVE_RETRY_DELAY = float(os.getenv("SAVE_RETRY_DELAY", 1))
 
     # Image processing
     IMAGE_QUALITY = int(os.getenv("IMAGE_QUALITY", 95))
