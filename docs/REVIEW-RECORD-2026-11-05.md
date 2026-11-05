@@ -737,3 +737,18 @@ flake8 first reported one line in the new test that was too long (101 characters
 - **One photo checked.** The other five photos from that run were not available to me.
 - **Time:** about 1.8 s on this machine when the fallback runs; on the phone it will likely be slower. Not measured there.
 - **Live camera mode** (desktop and Android) does not use the fallback.
+
+### 14.5 Push to main
+
+Jason answered "Push to main" on November 5, 2026 at 05:29 UTC. Before the push, `main` on GitHub was still at `faeb43b`, so both pushes were fast-forwards: no force push and no history rewritten.
+
+```
+$ git push -u origin claude/project-thread-6g31ff
+   faeb43b..1c7c475  claude/project-thread-6g31ff -> claude/project-thread-6g31ff
+$ git push origin main
+   faeb43b..1c7c475  main -> main
+1c7c47513f73719a364f51209f258a6d69458160	refs/heads/claude/project-thread-6g31ff
+1c7c47513f73719a364f51209f258a6d69458160	refs/heads/main
+```
+
+The GitHub API showed both branches at `1c7c475`, the same as local. That push included sections 13 and 14 and the photo fix. This note was added in one more commit, which was pushed to both branches the same way.
