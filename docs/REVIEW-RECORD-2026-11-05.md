@@ -533,3 +533,19 @@ No failures in this round. I did not run the new tests against the old code, bec
 - **Packaging:** a frozen build (for example PyInstaller) would need `multiprocessing.freeze_support()` in the desktop launcher. There is no such build in the repository, so I did not add it.
 - **Hard crash of the app:** if the app itself is killed, the camera process is marked daemon and stops when its pipe closes, but a camera process stuck in a read would linger until it is killed separately.
 - **Android live mode** keeps the in-thread camera and its limit from 9.4.
+
+### 10.5 Push
+
+Jason answered "Yes, push it" on November 5, 2026 at 04:32 UTC.
+
+```
+$ git push -u origin claude/project-thread-6g31ff
+To https://github.com/jason-mccoy/qr-code-scanner-unified
+   250b406..6f0c21e  claude/project-thread-6g31ff -> claude/project-thread-6g31ff
+
+$ git ls-remote origin refs/heads/main refs/heads/claude/project-thread-6g31ff
+6f0c21e0e26f41f9b1fd9bde47c3e1fa834290e3	refs/heads/claude/project-thread-6g31ff
+042a65d55d3b0a8d40355ee08d0dd71a480e98e7	refs/heads/main
+```
+
+It was a fast-forward push, with no force. Afterwards I checked through the GitHub API: the branch is at `6f0c21e`, the same as the local head, `main` is still at `042a65d`, and there are no pull requests. This subsection was added in one more commit, which was pushed to the same branch. Nothing was merged.
