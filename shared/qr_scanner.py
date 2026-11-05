@@ -367,11 +367,59 @@ class QRScanner:
                 logger.error(f"Failed to load image: {image_path}")
                 return []
 
-            return self.scan_frame(image)
+            results = self.scan_frame(image)
+            if results:
+                return results
+            return self._scan_photo_fallbacks(image)
 
         except Exception as e:
             logger.error(f"Error scanning image file: {e}")
             return []
+
+    # Long-side sizes (pixels) tried when a full-size photo gives no result
+    PHOTO_FALLBACK_SIZES = (1600, 1000, 640)
+
+    def _scan_photo_fallbacks(self, image: np.ndarray) -> List[ScanResult]:
+        """
+        Try again on smaller and black-and-white copies of a photo.
+
+        zbar often misses a code in a large phone photo where each module is
+        dozens of pixels wide and carries noise, such as the pixel grid of a
+        screen or the camera's sharpening. Shrinking the photo or turning it
+        into pure black and white (Otsu threshold) removes that noise. This is
+        used for photo files only; live frames are small and must stay fast.
+        Results from all copies are combined, and their rectangles are given
+        in the original photo's pixels.
+        """
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if image.ndim == 3 else image
+        height, width = gray.shape[:2]
+        long_side = max(height, width)
+
+        candidates = []
+        for size in self.PHOTO_FALLBACK_SIZES:
+            if long_side > size:
+                scale = size / long_side
+                small = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+                candidates.append((small, scale))
+        candidates.append((gray, 1.0))
+        thresholded = []
+        for picture, scale in candidates:
+            _, bw = cv2.threshold(picture, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            thresholded.append((bw, scale))
+        candidates += thresholded
+
+        found: Dict[Tuple[str, str], ScanResult] = {}
+        for picture, scale in candidates:
+            for result in self.scan_frame(picture):
+                key = (result.format, result.data)
+                if key in found:
+                    continue
+                if result.rect is not None:
+                    result.rect = tuple(int(round(v / scale)) for v in result.rect)
+                found[key] = result
+        if found:
+            logger.info(f"Found {len(found)} code(s) after resizing or thresholding the photo")
+        return list(found.values())
 
     def draw_detections(self, frame: np.ndarray, results: List[ScanResult]) -> np.ndarray:
         """

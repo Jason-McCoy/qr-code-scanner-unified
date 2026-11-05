@@ -668,3 +668,72 @@ He also sent a photo of the code he was trying to scan. It is a small rectangula
 **Not a bug fix in this round.** Reading Data Matrix would need another library, such as pylibdmtx (libdmtx). Whether that library installs and works in Termux was not checked.
 
 **Still open:** reading a QR code on the phone. A QR code has three large squares in its corners.
+
+## 14. Phone photos of a QR code not read (November 5, 2026)
+
+Jason wrote "Something is not working right". On `main`, `android.scan_latest --force` reported "No codes found" for six new photos (`IMG_20261104_230817751` to `IMG_20261104_231843280`). He sent one photo: a large, sharp Wikipedia sample QR code on a phone screen, which a person would expect to scan. It is 4096x2304 pixels, and its EXIF says it was taken on a moto g stylus 2025 at 23:18:43. That matches the file name of the last photo, so it is very likely the same file. The other five photos were not available to me.
+
+### 14.1 Diagnosis (`logs/photo-diagnosis.txt`)
+
+On that exact file, before the fix:
+
+```
+PIL size (4096, 2304) EXIF orientation 6
+app scan_image_file: []
+cv2 shape (4096, 2304, 3)
+raw pyzbar full gray: []
+pyzbar at scale 0.5: []
+pyzbar at scale 0.25: [('QRCODE', b'http://en.m.wikipedia.org')]
+pyzbar at scale 0.125: [('QRCODE', b'http://en.m.wikipedia.org')]
+crop shape (1497, 1445) pyzbar on crop: []
+pyzbar otsu full: [('QRCODE', b'https://www.the-qrcode-generator.com/'), ('QRCODE', b'http://en.m.wikipedia.org')]
+opencv QRCodeDetector:
+$ zbarimg -q screen_qr.jpg   ->  exit 4 (nothing found)
+```
+
+**Cause (confirmed on this photo):** zbar itself, including the `zbarimg` command line, finds nothing in the full-size photo. Each square of the code is about 50 pixels wide and carries noise from the screen's pixel grid and the camera's sharpening. The same photo decodes once it is shrunk to a quarter or turned into pure black and white (Otsu threshold). The app passed only the full-size photo to zbar, so the problem is a decoder limit that our code did nothing to work around. It is not wrong data handling.
+
+Ruled out:
+- **Rotation:** OpenCV applies the EXIF rotation when it loads the file (shape 4096x2304 for a 2304x4096 sensor image).
+- **Symbol type:** QR is supported.
+- **Android path:** `scan_latest` uses the same `scan_image_file()` that was checked here.
+
+### 14.2 Fix
+
+`QRScanner.scan_image_file()` (photo files only) still tries the full photo first. If that finds nothing, it tries copies shrunk to a long side of 1600, 1000 and 640 pixels, then black-and-white copies of each. Results from all copies are combined, duplicates are dropped, and rectangles are given in the original photo's pixels. Live camera frames are not changed, because they are already small and must stay fast.
+
+On the same photo after the fix:
+
+```
+AFTER FIX app scan_image_file: [('QRCODE', 'http://en.m.wikipedia.org', (530, 1121, 1142, 1144)), ('QRCODE', 'https://www.the-qrcode-generator.com/', (1253, 3060, 332, 324))] in 1.83 s
+```
+
+The second code is the small QR in the next search result, which is also in the photo.
+
+### 14.3 Tests
+
+New `tests/test_photo_scan.py` (5 tests) with fixture `tests/fixtures/photo_screen_qr.jpg`. The fixture is a crop of Jason's photo showing only the sample QR code tile, with EXIF removed, JPEG quality 75, 423 KB.
+
+- plain zbar still reads nothing in the fixture, which keeps the test honest;
+- the app now decodes it as `http://en.m.wikipedia.org`;
+- the rectangle is in the original pixels;
+- a clean image never reaches the fallback;
+- a blank image returns nothing.
+
+Before the fix (`logs/photo-tests-before-fix.txt`): `3 failed, 2 passed`. The failures were the decode test (empty result), the rectangle test and the first-pass test (the fallback method did not exist yet).
+
+After, full suite once (`logs/photo-after-pytest.txt`), then flake8:
+
+```
+122 passed in 15.58s
+flake8 exit 0
+```
+
+flake8 first reported one line in the new test that was too long (101 characters). It was wrapped, and flake8 then reported nothing.
+
+### 14.4 Still open
+
+- **Not run on the phone yet.** Jason needs to `git pull` once the fix is on GitHub and scan the same photo again.
+- **One photo checked.** The other five photos from that run were not available to me.
+- **Time:** about 1.8 s on this machine when the fallback runs; on the phone it will likely be slower. Not measured there.
+- **Live camera mode** (desktop and Android) does not use the fallback.

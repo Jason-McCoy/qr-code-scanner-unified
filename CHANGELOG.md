@@ -36,6 +36,9 @@ docs/REVIEW-RECORD-2026-11-05.md
 - Desktop: a camera that stops answering no longer stays held until exit;
   the camera runs in its own process, which is ended after
   CAMERA_READ_TIMEOUT (record section 10; simulated camera only)
+- Photo files: large phone photos of a QR code (for example of a screen)
+  were not read; scan_image_file now retries on smaller and black-and-white
+  copies (record section 14)
 - Follow-up: CSV guard also catches line feed, leading spaces and invisible
   characters before a formula, and full-width = + - @
 
