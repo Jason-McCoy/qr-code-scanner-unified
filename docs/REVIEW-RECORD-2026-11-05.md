@@ -549,3 +549,44 @@ $ git ls-remote origin refs/heads/main refs/heads/claude/project-thread-6g31ff
 ```
 
 It was a fast-forward push, with no force. Afterwards I checked through the GitHub API: the branch is at `6f0c21e`, the same as the local head, `main` is still at `042a65d`, and there are no pull requests. This subsection was added in one more commit, which was pushed to the same branch. Nothing was merged.
+
+## 11. First run on Jason's phone (Termux, November 5, 2026)
+
+Jason ran the review branch in Termux on his Android phone and sent two screenshots. The output below was copied from those screenshots.
+
+**First try (failed, not a code problem).** The commands were run from the home folder (`~`) instead of the project folder. The instructions he was given left out the `cd` step, so this was an instruction error:
+
+```
+~ $ git fetch origin
+git checkout claude/project-thread-6g31ff
+python -m android.scan_latest --force
+fatal: not a git repository (or any parent up to mount point /data/data)
+Stopping at filesystem boundary (GIT_DISCOVERY_ACROSS_FILESYSTEM not set).
+fatal: not a git repository (or any parent up to mount point /data/data)
+Stopping at filesystem boundary (GIT_DISCOVERY_ACROSS_FILESYSTEM not set).
+/data/data/com.termux/files/usr/bin/python: Error while finding module specification for 'android.scan_latest' (ModuleNotFoundError: No module named 'android')
+```
+
+**Second try (ran).** Run from `~/qr-code-scanner-unified`:
+
+```
+~ $ cd ~/qr-code-scanner-unified
+git fetch origin
+git checkout claude/project-thread-6g31ff
+python -m android.scan_latest --force
+...
+From https://github.com/Jason-McCoy/qr-code-scanner-unified
+ * [new branch]      claude/project-thread-6g31ff -> origin/claude/project-thread-6g31ff
+branch 'claude/project-thread-6g31ff' set up to track 'origin/claude/project-thread-6g31ff'.
+Switched to a new branch 'claude/project-thread-6g31ff'
+Scanning: IMG_20261027_194351075_HDR.jpg
+No codes found. Try a closer, sharper, well-lit photo.
+```
+
+**What this confirms:** on his phone, the review branch checks out, `android.scan_latest` imports and runs, it finds the newest camera photo, and it reports a result without errors.
+
+**What it does not confirm:** decoding on the phone. The photo it picked up was probably not a picture of a QR code, so "No codes found" may be correct. The screenshot does not show which commit was checked out. The branch head at the time of the fetch was `c5c15cd`.
+
+**Still open:**
+- A run on a photo of a real QR code, to prove decoding on the phone.
+- Android live camera mode (`android.qr_scanner_android`) was not run.
