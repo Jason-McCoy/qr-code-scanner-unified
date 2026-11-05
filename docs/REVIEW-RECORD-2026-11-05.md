@@ -614,3 +614,36 @@ $ git ls-remote origin refs/heads/main refs/heads/claude/project-thread-6g31ff
 ```
 
 Fast-forward, no force. Afterwards, the GitHub API showed the branch at `0de44a5`, the same as the local head. `main` was unchanged and there were no pull requests. This note was added in one more commit, pushed to the same branch.
+
+## 12. Merge into main (November 5, 2026)
+
+Jason asked to "Publish the updated version". Asked whether he meant merging the review branch into `main`, he said "Yes, merge into main" (05:00 UTC). That was after being reminded that GPT and Claude had both suggested waiting until a QR code had been read on his phone. **At merge time, QR decoding on his phone had not been shown**; only an EAN-13 barcode had been (section 11). Merging anyway was his decision.
+
+How it was done, so it can be reviewed and undone:
+
+- Before the merge, `main` on GitHub was still at `042a65d`, which is where the branch started, so there was nothing to reconcile and no conflicts.
+- I used a merge commit (`git merge --no-ff`), not a squash. There was no force push and no history was rewritten. The merge commit `739dea2` has the same file contents as the branch head `61f53e4`.
+- To undo it: `git revert -m 1 739dea2` makes a new commit that puts `main` back to the old contents.
+
+Full suite on the merged result, before pushing (`logs/merge-pytest.txt`):
+
+```
+117 passed in 13.72s
+flake8 exit 0
+```
+
+Push and check (`logs/merge-push.txt`):
+
+```
+$ git push origin main
+   042a65d..739dea2  main -> main
+$ git ls-remote origin refs/heads/main refs/heads/claude/project-thread-6g31ff
+61f53e4954ed3e4dee40849f32af916cea8eb5e9	refs/heads/claude/project-thread-6g31ff
+739dea268e245daf21e49ee46d5bf57efc102c44	refs/heads/main
+```
+
+The GitHub API showed the same: `main` at `739dea2`, the same as local. The review branch is kept, not deleted. No pull request was used.
+
+This section was added in one more commit, first on the review branch and then on `main`. Both pushes were fast-forwards.
+
+**Still open after the merge:** reading a QR code on the phone; Android live camera mode; a real webcam and Windows for the desktop app; testing in Excel, LibreOffice and Google Sheets; and the items in section 7 that were left for Jason's decision.
