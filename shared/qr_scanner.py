@@ -66,7 +66,8 @@ class QRScanner:
     and pyzbar for QR code decoding.
     """
 
-    def __init__(self, camera_index: int = 0, duplicate_cooldown: Optional[float] = None):
+    def __init__(self, camera_index: int = 0, duplicate_cooldown: Optional[float] = None,
+                 camera_in_process: bool = False, camera_opener=None):
         """
         Initialize QR Scanner
 
@@ -75,8 +76,15 @@ class QRScanner:
             duplicate_cooldown: Seconds during which the same code is not
                 reported again by continuous scanning. Defaults to
                 Config.DUPLICATE_COOLDOWN. Use 0 to report every frame.
+            camera_in_process: Open the camera in a separate process
+                (shared/camera_process.py), so a read that hangs can be
+                ended and the camera freed. Used by the desktop app.
+            camera_opener: For tests: function that opens the camera
+                inside that process instead of cv2.VideoCapture.
         """
         self.camera_index = camera_index
+        self.camera_in_process = camera_in_process
+        self.camera_opener = camera_opener
         self.cap = None
         self.is_running = False
         self.last_scan_time = None
@@ -100,13 +108,25 @@ class QRScanner:
             bool: True if successful, False otherwise
         """
         try:
-            self.cap = cv2.VideoCapture(self.camera_index)
-
-            # Set camera properties for better performance
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-            self.cap.set(cv2.CAP_PROP_FPS, 30)
-            self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)
+            # Camera properties for better performance
+            props = [
+                (cv2.CAP_PROP_FRAME_WIDTH, 1280),
+                (cv2.CAP_PROP_FRAME_HEIGHT, 720),
+                (cv2.CAP_PROP_FPS, 30),
+                (cv2.CAP_PROP_AUTOFOCUS, 1),
+            ]
+            if self.camera_in_process:
+                from .camera_process import ProcessCapture
+                self.cap = ProcessCapture(
+                    self.camera_index, props,
+                    open_timeout=Config.CAMERA_OPEN_TIMEOUT,
+                    read_timeout=Config.CAMERA_READ_TIMEOUT,
+                    opener=self.camera_opener,
+                )
+            else:
+                self.cap = cv2.VideoCapture(self.camera_index)
+                for prop, value in props:
+                    self.cap.set(prop, value)
 
             if not self.cap.isOpened():
                 logger.error("Failed to open camera")

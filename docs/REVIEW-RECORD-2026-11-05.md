@@ -463,3 +463,73 @@ c6bd732fdf8147ef854731d37b8f5e5e77804c64	refs/heads/claude/project-thread-6g31ff
 It was a normal fast-forward push (no force). Checked afterwards through the GitHub API: two branches, `main` still at `042a65d` (unchanged) and `claude/project-thread-6g31ff` at `c6bd732`, the same as the local head, and no pull requests, open or closed.
 
 This subsection was added in one more commit after `c6bd732`, pushed to the same branch. No pull request was opened and nothing was merged. Merging is Jason's decision.
+
+## 10. Camera release when a read hangs (November 5, 2026)
+
+After section 9, GPT advised keeping the changes on the review branch and making real-device testing and the remaining camera shutdown issue the next priorities. Jason said "Correct and you can proceed". This section covers the shutdown issue. Starting point: `250b406`. All changes are in one new local commit, not pushed.
+
+### 10.1 Finding
+
+Confirmed, with a simulated camera. Section 9.4 left one limit: a camera read that never returns keeps the camera held until the app exits. That cannot be fixed inside a thread. Python cannot stop a thread that is stuck in a native call, and releasing the camera from another thread while a read is still running can crash inside OpenCV.
+
+Old code, using the real `CameraWorker` with a capture whose `read()` never returns (`logs/hang-before.txt`):
+
+```
+5 s after Stop: worker thread alive=True, camera released=False
+```
+
+### 10.2 Change and why
+
+I looked at three approaches and chose the third:
+
+- **Release the camera from the window after the timeout:** rejected. It is the unsafe concurrent release described above.
+- **OpenCV's own read timeout** (`CAP_PROP_READ_TIMEOUT_MSEC`): rejected. Not every backend supports it, and it cannot be checked here without a real camera.
+- **Run the camera in its own process:** chosen. A process can always be ended, and when it ends the operating system frees the camera. This is the only one of the three that covers a read that never returns.
+
+What changed:
+
+- New `shared/camera_process.py`. `ProcessCapture` opens the camera in a child process and offers the same `isOpened()`, `read()` and `release()` that `QRScanner` already uses. The main process asks for one frame at a time, so frames are never stale.
+- When a frame does not arrive within `CAMERA_READ_TIMEOUT` (default 3 s), the child process is ended (stop request, then terminate, then kill) and `read()` raises `CameraTimeout`. The desktop worker's existing error path then stops scanning, the window shows "The camera stopped responding" and Start works again.
+- Opening has its own limit, `CAMERA_OPEN_TIMEOUT` (default 10 s).
+- The process is started with "spawn", because forking a process that runs Qt and other threads is not safe.
+- `QRScanner` has a new `camera_in_process` option. The desktop window turns it on through `DESKTOP_CAMERA_PROCESS` (default true; set it to false to go back to the old in-thread camera). New settings are in `shared/config.py` and `.env.example`.
+- **The Android live mode is unchanged.** It still reads the camera in its main thread, because I could not test multiprocessing on Pydroid or Termux.
+
+### 10.3 Tests, with actual output
+
+New `tests/test_camera_process.py` (4 tests), with fake cameras in `tests/fake_cameras.py`:
+
+1. A working fake camera reads a 1280x720 frame, and release stops the process cleanly (exit code 0; the fake's release ran).
+2. A read that never returns raises `CameraTimeout` within 3 s with a 1 s limit, and the process is dead afterwards. The fake's release never ran, which shows the process was ended rather than stopping by itself.
+3. An open that never returns gives up within the limit, and the process is ended.
+4. The window: the fake read hangs, scanning ends, the camera process is dead, Start is enabled again and the error message was shown. The app did not abort.
+
+After the change, with the same hanging fake (`logs/hang-after-demo.txt`):
+
+```
+Stop with CAMERA_READ_TIMEOUT=3: worker ended=True, camera process alive=False (exit code -15), took 2.7 s
+Fake 1280x720 camera through the process pipe: 110 frames per second (no QR decoding)
+```
+
+Exit code -15 means the process was ended by terminate. The 110 frames per second shows the extra hop between processes is not a bottleneck for a 30 fps camera. That figure is from a fake camera on this machine, not from a phone or a real webcam.
+
+Full suite, run once after the change (`logs/hang-after-pytest.txt`, `logs/hang-after-flake8.txt`):
+
+```
+117 passed in 13.36s
+TOTAL                            1147    366    68%
+flake8 exit 0
+```
+
+`shared/camera_process.py` shows 66% coverage because the code that runs inside the child process is not counted. Coverage does not follow child processes; the tests above do exercise that code.
+
+No failures in this round. I did not run the new tests against the old code, because `ProcessCapture` did not exist there. The before demo in 10.1 is the comparison.
+
+### 10.4 Still open
+
+- **Only simulated.** The hanging camera was a fake whose read sleeps. Nothing was run on a real webcam, a USB camera being unplugged, Windows or macOS. Whether a real driver hangs in the way the fake does was not checked.
+- **Stop now takes up to `CAMERA_READ_TIMEOUT`** (3 s by default) when the camera has stopped answering, instead of waiting forever.
+- **Spawn start-up cost:** the camera process imports OpenCV and also re-imports the desktop app's main module (that is how spawn works), so Start may be slower. Not measured on real hardware.
+- **Packaging:** a frozen build (for example PyInstaller) would need `multiprocessing.freeze_support()` in the desktop launcher. There is no such build in the repository, so I did not add it.
+- **Hard crash of the app:** if the app itself is killed, the camera process is marked daemon and stops when its pipe closes, but a camera process stuck in a read would linger until it is killed separately.
+- **Android live mode** keeps the in-thread camera and its limit from 9.4.

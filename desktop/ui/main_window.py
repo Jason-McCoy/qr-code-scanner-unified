@@ -40,7 +40,7 @@ class MainWindow(QMainWindow):
         self.setGeometry(100, 100, 1400, 900)
 
         # Initialize components
-        self.scanner = QRScanner()
+        self.scanner = QRScanner(camera_in_process=Config.DESKTOP_CAMERA_PROCESS)
         self.manager = DataManager()
         self.event_handler = EventHandler(self.manager)
 

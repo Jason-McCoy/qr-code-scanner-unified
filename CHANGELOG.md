@@ -33,6 +33,9 @@ docs/REVIEW-RECORD-2026-11-05.md
   longer treats a code as done when its database write fails; it retries
 - Follow-up: desktop worker now releases the camera itself on stop or error;
   a Stop that timed out no longer aborts the app (bug from this review)
+- Desktop: a camera that stops answering no longer stays held until exit;
+  the camera runs in its own process, which is ended after
+  CAMERA_READ_TIMEOUT (record section 10; simulated camera only)
 - Follow-up: CSV guard also catches line feed, leading spaces and invisible
   characters before a formula, and full-width = + - @
 
@@ -40,6 +43,8 @@ docs/REVIEW-RECORD-2026-11-05.md
 - shared/safety.py (safe_display, csv_safe_cell), shared/logging_setup.py
 - QRScanner.filter_new() and reset_duplicates(); DUPLICATE_COOLDOWN setting
 - QRScanner.mark_failed(); SAVE_RETRY_DELAY setting
+- shared/camera_process.py; DESKTOP_CAMERA_PROCESS, CAMERA_OPEN_TIMEOUT,
+  CAMERA_READ_TIMEOUT settings
 - scan_latest --verbose, upper-case photo extensions, CAMERA_DIR setting
 - Tests: real QR image fixtures, duplicate filter, safety helpers, CSV/JSON
   export, entry points, desktop window (offscreen)

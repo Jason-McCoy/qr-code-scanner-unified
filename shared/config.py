@@ -44,6 +44,11 @@ class Config:
 
     # Scanning configuration
     CAMERA_INDEX = int(os.getenv("CAMERA_INDEX", 0))
+    # Desktop app: run the camera in its own process, so a camera that stops
+    # answering can be ended and freed (see shared/camera_process.py)
+    DESKTOP_CAMERA_PROCESS = os.getenv("DESKTOP_CAMERA_PROCESS", "true").lower() == "true"
+    CAMERA_OPEN_TIMEOUT = float(os.getenv("CAMERA_OPEN_TIMEOUT", 10))  # seconds
+    CAMERA_READ_TIMEOUT = float(os.getenv("CAMERA_READ_TIMEOUT", 3))  # seconds per frame
     SCAN_TIMEOUT = int(os.getenv("SCAN_TIMEOUT", 30))  # seconds
     MIN_CONFIDENCE = float(os.getenv("MIN_CONFIDENCE", 0.5))
     # Seconds before the same code is reported again during continuous scanning
