@@ -106,7 +106,7 @@ Contributions are welcome! Please see [CONTRIBUTING.md](docs/CONTRIBUTING.md) fo
 
 ## License
 
-GNU General Public License v3.0 - see [LICENSE](LICENSE) for details.
+GNU General Public License, version 3 only (SPDX: `GPL-3.0-only`). Later versions of the GPL do not apply. The full text is in [LICENSE](LICENSE).
 
 ## Support
 

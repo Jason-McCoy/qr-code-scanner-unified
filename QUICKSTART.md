@@ -93,7 +93,7 @@ DATA_DIR=./data          # Database folder (relative to the project folder)
 
 ## License
 
-GNU General Public License v3.0. See the LICENSE file.
+GNU General Public License, version 3 only (SPDX: `GPL-3.0-only`). Later versions of the GPL do not apply. See the LICENSE file.
 
 ## Author
 
