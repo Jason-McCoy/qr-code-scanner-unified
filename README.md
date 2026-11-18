@@ -106,7 +106,9 @@ Contributions are welcome! Please see [CONTRIBUTING.md](docs/CONTRIBUTING.md) fo
 
 ## License
 
-GNU General Public License, version 3 only (SPDX: `GPL-3.0-only`). Later versions of the GPL do not apply. The full text is in [LICENSE](LICENSE).
+Code: GNU General Public License, version 3 only (SPDX: `GPL-3.0-only`). Later versions of the GPL do not apply. The full text is in [LICENSE](LICENSE).
+
+Documentation (this README, QUICKSTART, CHANGELOG, SECURITY and the files in docs/): Creative Commons Attribution 4.0 International (SPDX: `CC-BY-4.0`), https://creativecommons.org/licenses/by/4.0/
 
 ## Support
 
